@@ -12,6 +12,20 @@ return {
       require "configs.lspconfig"
     end,
   },
+  -- add two mason plugin
+  {
+    "williamboman/mason.nvim",
+    opts = require "configs.mason",
+  },
+  {
+    "williamboman/mason-lspconfig.nvim",
+    config = function()
+      require("mason-lspconfig").setup {
+        ensure_installed = {"pyright", "black", "isort" },
+	automatic_installation = true,
+      }
+    end
+  },
 
   -- test new blink
   -- { import = "nvchad.blink.lazyspec" },
