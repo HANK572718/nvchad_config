@@ -169,9 +169,47 @@ local function get_file_ignore_patterns()
   return base_patterns
 end
 
+-- Generate depth filter patterns (ignore files deeper than max_depth)
+-- Depth is counted from git root: depth 1 = root/file.txt, depth 5 = root/a/b/c/d/file.txt
+local function get_depth_filter_patterns(max_depth)
+  local patterns = {}
+
+  -- Create pattern for paths with more than max_depth levels
+  -- Pattern counts the number of slashes to determine depth
+  -- For example, max_depth=5 means we ignore anything with 6+ slashes
+  -- Pattern: match paths that have (max_depth + 1) or more path separators
+
+  -- Build a pattern that matches paths deeper than max_depth
+  -- Example: if max_depth=5, we want to ignore "a/b/c/d/e/f/file.txt" (6+ levels)
+  local separator_count = max_depth
+  local pattern_parts = {}
+
+  for i = 1, separator_count + 1 do
+    table.insert(pattern_parts, "[^/]+")
+  end
+
+  -- This pattern matches any path with more than max_depth levels
+  local depth_pattern = table.concat(pattern_parts, "/")
+  table.insert(patterns, depth_pattern)
+
+  return patterns
+end
+
+-- Merge all ignore patterns including depth filter
+local function get_all_ignore_patterns(max_depth)
+  local all_patterns = get_file_ignore_patterns()
+  local depth_patterns = get_depth_filter_patterns(max_depth)
+
+  for _, pattern in ipairs(depth_patterns) do
+    table.insert(all_patterns, pattern)
+  end
+
+  return all_patterns
+end
+
 local options = {
   defaults = {
-    file_ignore_patterns = get_file_ignore_patterns(),
+    file_ignore_patterns = get_all_ignore_patterns(5),  -- Maximum depth: 5 levels
   },
 }
 
