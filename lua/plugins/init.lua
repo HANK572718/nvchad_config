@@ -8,7 +8,24 @@ return {
   -- Telescope configuration with file ignore patterns
   {
     "nvim-telescope/telescope.nvim",
-    opts = require "configs.telescope",
+    opts = function()
+      return require "configs.telescope"
+    end,
+    config = function(_, opts)
+      -- Force apply our configuration
+      local telescope = require("telescope")
+      telescope.setup(opts)
+
+      -- Verify configuration is applied
+      vim.schedule(function()
+        local config = require("telescope.config").values
+        if config.max_results ~= 1000 then
+          vim.notify("WARNING: Telescope max_results not applied! Value: " .. tostring(config.max_results), vim.log.levels.WARN)
+        else
+          vim.notify("✓ Telescope configured: max_results = 1000", vim.log.levels.INFO)
+        end
+      end)
+    end,
   },
 
   -- These are some examples, uncomment them if you want to see them work!

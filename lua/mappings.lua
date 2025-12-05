@@ -11,4 +11,17 @@ map("i", "jk", "<ESC>")
 map("n", "<leader>o", "<cmd>Telescope lsp_document_symbols<cr>", { desc = "LSP 顯示文件符號列表" })
 map("n", "<leader>O", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", { desc = "LSP 顯示工作區符號列表" })
 
+-- Telescope Debug commands
+vim.api.nvim_create_user_command("TelescopeShowIgnorePatterns", function()
+  require("configs.telescope_debug").show_ignore_patterns()
+end, { desc = "顯示 Telescope 忽略的模式" })
+
+vim.api.nvim_create_user_command("TelescopeCountFiles", function()
+  require("configs.telescope_debug").count_files_in_cwd()
+end, { desc = "計算當前目錄的檔案數量" })
+
+vim.api.nvim_create_user_command("TelescopeAnalyzeFolders", function()
+  require("configs.telescope_debug").analyze_folders()
+end, { desc = "分析當前目錄下的資料夾" })
+
 -- map({ "n", "i", "v" }, "<C-s>", "<cmd> w <cr>")
