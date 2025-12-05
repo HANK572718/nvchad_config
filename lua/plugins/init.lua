@@ -5,6 +5,12 @@ return {
     opts = require "configs.conform",
   },
 
+  -- Telescope configuration with file ignore patterns
+  {
+    "nvim-telescope/telescope.nvim",
+    opts = require "configs.telescope",
+  },
+
   -- These are some examples, uncomment them if you want to see them work!
   {
     "neovim/nvim-lspconfig",
