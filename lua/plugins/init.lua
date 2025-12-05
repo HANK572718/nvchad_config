@@ -62,4 +62,7 @@ return {
   -- 		},
   -- 	},
   -- },
+
+  -- Image preview with custom Telescope + chafa (Windows-compatible)
+  -- No additional plugins needed - uses built-in Telescope API
 }

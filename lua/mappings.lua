@@ -24,4 +24,9 @@ vim.api.nvim_create_user_command("TelescopeAnalyzeFolders", function()
   require("configs.telescope_debug").analyze_folders()
 end, { desc = "分析當前目錄下的資料夾" })
 
+-- Image preview with custom Telescope + chafa
+map("n", "<leader>fp", function()
+  require("configs.image_preview").find_images()
+end, { desc = "瀏覽圖片（Image Browser）" })
+
 -- map({ "n", "i", "v" }, "<C-s>", "<cmd> w <cr>")
