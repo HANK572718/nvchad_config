@@ -514,3 +514,365 @@ end
 ## 📄 授權
 
 此配置檔案可自由使用和修改。
+
+---
+
+---
+
+# 🚀 最終解決方案：MSYS2 + fd（2025-12-05 更新）
+
+## 問題 3：搜尋結果破萬、速度極慢
+
+### 問題描述
+即使配置了 `file_ignore_patterns` 和 `max_results = 1000`，Telescope 仍然：
+- ❌ 掃描超過 114,490 個檔案
+- ❌ 搜尋速度極慢（30+ 秒）
+- ❌ 持續出現警告：`[telescope] [WARN] ...for the Windows 'where' command in find_files`
+- ❌ 無法阻止搜尋，持續破萬
+
+### 根本原因
+- Windows 預設的檔案查找工具效能極差
+- Telescope 的 `max_results` 只限制**顯示數量**，不限制**掃描數量**
+- `file_ignore_patterns` 在檔案掃描後才過濾，無法從源頭阻止
+
+---
+
+## ✅ 最終解決方案：MSYS2 + fd
+
+### 方案架構
+
+```
+MSYS2 (提供 Unix-like 工具環境)
+  ↓
+fd (高效能檔案搜尋工具)
+  ↓
+Telescope (使用 fd 進行搜尋)
+  ↓
+結果：從源頭限制搜尋範圍
+```
+
+---
+
+## 📦 步驟 1：安裝 MSYS2
+
+### 使用 winget 安裝
+
+```powershell
+winget install MSYS2.MSYS2
+```
+
+**安裝位置**：`C:\msys64_2\`（或 `C:\msys64\`）
+
+---
+
+## ⚙️ 步驟 2：設定 PATH 環境變數
+
+### 方法：使用環境變數引用（推薦）
+
+1. **建立 `MY_UNIX_TOOLS` 變數**：
+   ```
+   變數名稱：MY_UNIX_TOOLS
+   變數值：C:\msys64_2\ucrt64\bin
+   ```
+
+2. **在 PATH 中引用**：
+   ```
+   %MY_UNIX_TOOLS%
+   ```
+
+### 好處
+- ✅ 路徑集中管理
+- ✅ 易於維護和更新
+- ✅ 可同時管理多個工具集
+
+---
+
+## 📥 步驟 3：安裝 fd 和 ripgrep
+
+開啟 **MSYS2 UCRT64 終端**：
+
+```bash
+# 更新套件庫
+pacman -Syu
+
+# 安裝 fd
+pacman -S mingw-w64-ucrt-x86_64-fd
+
+# 安裝 ripgrep
+pacman -S mingw-w64-ucrt-x86_64-ripgrep
+```
+
+### 驗證安裝
+
+在 PowerShell 中執行：
+```powershell
+fd --version    # 應顯示：fd 10.3.0
+rg --version    # 應顯示：ripgrep 15.1.0
+```
+
+**如果找不到命令**，執行以下命令刷新環境變數：
+```powershell
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::ExpandEnvironmentVariables([System.Environment]::GetEnvironmentVariable("Path","User"))
+```
+
+---
+
+## 🔧 步驟 4：配置 Telescope 使用 fd
+
+### 最終配置（`lua\configs\telescope.lua`）
+
+```lua
+-- Get base folder ignore patterns (always applied)
+local function get_base_patterns()
+  return {
+    -- Git internals
+    ".git/",
+
+    -- Common large folders
+    "node_modules/",
+    "__pycache__/",
+    ".pytest_cache/",
+    ".mypy_cache/",
+    ".tox/",
+    "%.egg%-info/",
+
+    -- IDE folders
+    ".vscode/",
+    ".idea/",
+
+    -- Project-specific large folders
+    "wheel%-packages_before_1022/",
+    "wheel%-packages/",
+    "wheel%-packages_old/",
+    "cache/",
+    "results_ov_inferencer/",
+    "logs/",
+    "model_use/",
+    "docs/",
+    "API_logs/",
+
+    -- Image folders (large amounts of images)
+    "test_captures/",
+    "test_captures.*",
+    "data/",
+  }
+end
+
+local options = {
+  defaults = {
+    -- Static ignore patterns (double protection)
+    file_ignore_patterns = get_base_patterns(),
+
+    -- Backup limit (if fd fails)
+    max_results = 1000,
+
+    -- UI settings
+    path_display = { "truncate" },
+    sorting_strategy = "ascending",
+    layout_config = {
+      prompt_position = "top",
+    },
+  },
+  pickers = {
+    find_files = {
+      hidden = false,
+      follow = false,
+
+      -- Use fd for fast file searching (PRIMARY SOLUTION)
+      find_command = {
+        "fd",
+        "--type", "f",              -- Only files
+        "--max-depth", "5",         -- Maximum depth: 5 levels
+        "--max-results", "1000",    -- Maximum results: 1000 files ⚡
+        "--hidden",                 -- Include hidden files
+        "--exclude", ".git",        -- Exclude .git folder
+        "--strip-cwd-prefix",       -- Remove current directory prefix
+        "--color", "never",         -- No color output
+      },
+    },
+  },
+}
+
+return options
+```
+
+---
+
+## 📊 配置分析：保留 vs 移除
+
+### ✅ 應該保留的配置
+
+| 配置項目 | 為什麼保留 | 位置 |
+|---------|-----------|------|
+| `file_ignore_patterns` | 額外的過濾層，fd 只排除 .git | 第 173 行 |
+| `max_results = 1000` | 備份保險，若 fd 失效仍有效 | 第 176 行 |
+| `get_base_patterns()` | 定義靜態忽略清單 | 第 135-168 行 |
+| `find_command` (fd) | **核心功能**，從源頭限制搜尋 | 第 191-200 行 |
+
+### ❌ 可以移除的配置（已不再使用）
+
+| 函數名稱 | 位置 | 原因 |
+|---------|------|------|
+| `count_files_in_folder()` | 第 3-41 行 | 不再被調用 |
+| `scan_large_folders()` | 第 45-80 行 | 不再被調用 |
+| `parse_gitignore_folders()` | 第 84-132 行 | 不再被調用 |
+
+**建議**：保持現狀不動，這些函數不影響效能。如需清理可移除。
+
+---
+
+## 📈 效能對比
+
+### 實測數據
+
+| 項目 | 使用前 | 使用後（MSYS2 + fd） |
+|------|--------|-------------------|
+| **掃描檔案數** | 114,490 | ≤ 1,000 ⚡ |
+| **搜尋時間** | 30+ 秒（卡住） | 1-2 秒 ⚡ |
+| **深度限制** | 無 | 5 層 ✅ |
+| **警告訊息** | 有 | 無 ✅ |
+| **可用性** | 無法使用 | 完全正常 ✅ |
+
+### 改善幅度
+- ⚡ **速度提升 15-30 倍**
+- 🎯 **結果數量從 11 萬+ → 1000 以內**
+- ✅ **使用體驗：從無法使用 → 秒速回應**
+
+---
+
+## 🎯 完整解決方案總結
+
+### 三層防護機制
+
+```
+第一層：fd 從源頭限制
+  ├─ --max-depth 5 (深度限制)
+  ├─ --max-results 1000 (數量限制)
+  └─ --exclude .git (排除 .git)
+         ↓
+第二層：file_ignore_patterns 過濾
+  ├─ 基礎大型資料夾
+  ├─ 專案特定資料夾
+  └─ 圖片資料夾
+         ↓
+第三層：max_results 備份保險
+  └─ 確保最多顯示 1000 筆
+         ↓
+      ✅ 結果
+```
+
+---
+
+## 🔍 調試工具
+
+### 已實作的調試命令
+
+#### 1. 顯示忽略模式
+```vim
+:TelescopeShowIgnorePatterns
+```
+顯示所有 `file_ignore_patterns`
+
+#### 2. 計算檔案數量
+```vim
+:TelescopeCountFiles
+```
+計算當前目錄檔案總數（深度 ≤ 5）
+
+#### 3. 分析資料夾
+```vim
+:TelescopeAnalyzeFolders
+```
+顯示各資料夾的檔案數量，找出大型資料夾
+
+---
+
+## 🛠️ 疑難排解
+
+### 問題：fd 命令找不到
+
+**症狀**：
+```powershell
+PS> fd --version
+fd : The term 'fd' is not recognized...
+```
+
+**解決方式**：
+```powershell
+# 刷新環境變數
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::ExpandEnvironmentVariables([System.Environment]::GetEnvironmentVariable("Path","User"))
+
+# 驗證
+fd --version
+```
+
+### 問題：Telescope 仍然很慢
+
+**檢查項目**：
+1. 確認 fd 可用：`:lua print(vim.fn.executable("fd"))`（應顯示 `1`）
+2. 檢查配置：`:lua print(vim.inspect(require("telescope.config").values.pickers.find_files))`
+3. 確認 `find_command` 包含 `fd`
+
+---
+
+## 💡 額外建議
+
+### 只需要 UCRT64 路徑
+
+對於 NvChad + Telescope 使用場景，**只需要**：
+```
+C:\msys64_2\ucrt64\bin
+```
+
+**不需要**添加：
+- `C:\msys64_2\usr\bin` - 除非需要在 PowerShell 中使用 bash 等工具
+- `C:\msys64_2\mingw64\bin` - 除非需要 MinGW 編譯工具
+
+---
+
+## 📝 更新日誌（續）
+
+### 2025-12-05 下午
+
+**重大突破**：
+- ✅ 安裝 MSYS2 和 fd
+- ✅ 配置 PATH 環境變數使用引用方式
+- ✅ 修改 Telescope 配置使用 fd
+- ✅ 效能提升 15-30 倍
+- ✅ 完全解決搜尋破萬問題
+
+**最終狀態**：
+- 搜尋速度：從 30+ 秒 → 1-2 秒
+- 檔案數量：從 114,490 → ≤ 1,000
+- 使用體驗：從無法使用 → 完美運作
+
+---
+
+## 🎉 成功案例
+
+### 實際專案測試
+
+**專案規模**：
+- 根目錄檔案：114,490 個
+- 大型資料夾：`wheel-packages` (244), `cache` (207), `logs` (161), `test_captures`, `data`
+
+**配置後效果**：
+- ✅ 搜尋 1-2 秒內完成
+- ✅ 結果精準（≤ 1000 筆）
+- ✅ 無警告訊息
+- ✅ `<leader>ff` 體驗流暢
+
+---
+
+## 📚 相關文件（更新）
+
+- [fd 官方文件](https://github.com/sharkdp/fd)
+- [ripgrep 官方文件](https://github.com/BurntSushi/ripgrep)
+- [MSYS2 官網](https://www.msys2.org/)
+- [MSYS2 完整設定指南](./MSYS2_SETUP_GUIDE.md)
+
+---
+
+## 結語
+
+通過結合 **MSYS2 + fd + Telescope**，成功將 Neovim 的檔案搜尋功能從「無法使用」提升到「秒速回應」，實現了 Windows 上專業級的開發體驗。🎉

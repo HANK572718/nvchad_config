@@ -187,8 +187,17 @@ local options = {
       hidden = false,
       follow = false,
 
-      -- IMPORTANT: Set depth limit at picker level
-      find_command = nil,  -- Use default, but with our patterns
+      -- Use fd for fast file searching with depth and count limits
+      find_command = {
+        "fd",
+        "--type", "f",              -- Only files
+        "--max-depth", "5",         -- Maximum depth: 5 levels
+        "--max-results", "1000",    -- Maximum results: 1000 files
+        "--hidden",                 -- Include hidden files
+        "--exclude", ".git",        -- Exclude .git folder
+        "--strip-cwd-prefix",       -- Remove current directory prefix
+        "--color", "never",         -- No color output
+      },
     },
   },
 }
