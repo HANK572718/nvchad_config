@@ -167,6 +167,52 @@ local function get_base_patterns()
   }
 end
 
+-- Smart previewer that detects images and uses chafa
+local function create_smart_previewer()
+  local previewers = require("telescope.previewers")
+  local from_entry = require("telescope.from_entry")
+
+  -- Image extensions to detect
+  local image_extensions = {
+    png = true, jpg = true, jpeg = true, gif = true,
+    webp = true, bmp = true, svg = true, ico = true,
+    tiff = true, tif = true,
+  }
+
+  -- Check if file is an image
+  local function is_image(filepath)
+    local ext = filepath:match("%.([^%.]+)$")
+    return ext and image_extensions[ext:lower()]
+  end
+
+  -- Get default file previewer as fallback
+  local default_previewer = previewers.vim_buffer_cat.new({})
+
+  return previewers.new_termopen_previewer({
+    get_command = function(entry)
+      local path = from_entry.path(entry, true)
+      if not path then
+        return nil
+      end
+
+      -- If it's an image, use chafa
+      if is_image(path) then
+        return {
+          "C:\\msys64_2\\ucrt64\\bin\\chafa.exe",
+          "-f", "symbols",
+          "-s", "80x40",
+          "--animate", "off",
+          "--colors", "256",
+          path
+        }
+      end
+
+      -- For non-images, return nil to use default buffer previewer
+      return nil
+    end,
+  })
+end
+
 local options = {
   defaults = {
     -- Static ignore patterns (no dynamic scanning for stability)
@@ -174,6 +220,10 @@ local options = {
 
     -- CRITICAL: Limit results to 1000
     max_results = 1000,
+
+    -- Use smart previewer that handles images
+    buffer_previewer_maker = nil, -- Use default for buffers
+    file_previewer = create_smart_previewer,
 
     -- Additional settings
     path_display = { "truncate" },
