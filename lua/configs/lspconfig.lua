@@ -42,30 +42,7 @@ vim.lsp.config.pyright = {
   end,
 }
 
--- Configure Jedi Language Server for better implementation support
-vim.lsp.config.jedi_language_server = {
-  root_markers = {
-    'pyproject.toml',
-    'setup.py',
-    'setup.cfg',
-    'requirements.txt',
-    'Pipfile',
-    '.git',
-  },
-  on_new_config = function(config, root_dir)
-    -- Use the same Python path detection logic as pyright
-    local python_path = get_python_path(root_dir)
-    config.init_options = {
-      workspace = {
-        environmentPath = python_path
-      }
-    }
-    -- Optional: Print detected Python path for debugging
-    vim.notify("Jedi using: " .. python_path, vim.log.levels.INFO)
-  end,
-}
-
-local servers = { "pyright", "jedi_language_server" }  -- Enable both LSP servers
+local servers = { "pyright" }  -- Only use Pyright for better performance
 vim.lsp.enable(servers)
 
 -- read :h vim.lsp.config for changing options of lsp servers 
