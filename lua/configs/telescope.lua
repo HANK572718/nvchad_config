@@ -228,17 +228,14 @@ local options = {
     -- Additional settings
     path_display = { "truncate" },
     sorting_strategy = "ascending",
-    layout_strategy = "flex",
+    layout_strategy = "vertical",
     layout_config = {
       prompt_position = "top",
-      width = 0.99,
-      height = 0.99,
-      horizontal = {
-        preview_width = 0.65,
-      },
-      vertical = {
-        preview_height = 0.65,
-      },
+      width = 0.95,
+      height = 0.95,
+      preview_cutoff = 1,      -- 幾乎永不停用預覽（適合小螢幕大字體）
+      preview_height = 0.5,    -- 預覽與列表各佔 50%
+      mirror = false,          -- 預覽在上，結果在下
     },
   },
   pickers = {
