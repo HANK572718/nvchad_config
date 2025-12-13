@@ -228,8 +228,17 @@ local options = {
     -- Additional settings
     path_display = { "truncate" },
     sorting_strategy = "ascending",
+    layout_strategy = "flex",
     layout_config = {
       prompt_position = "top",
+      width = 0.99,
+      height = 0.99,
+      horizontal = {
+        preview_width = 0.65,
+      },
+      vertical = {
+        preview_height = 0.65,
+      },
     },
   },
   pickers = {
