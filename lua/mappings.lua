@@ -11,6 +11,10 @@ map("i", "jk", "<ESC>")
 map("n", "<leader>o", "<cmd>Telescope lsp_document_symbols<cr>", { desc = "LSP 顯示文件符號列表" })
 map("n", "<leader>O", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", { desc = "LSP 顯示工作區符號列表" })
 
+-- LSP Find References and Implementations (Python 使用 references 代替 implementations)
+map("n", "gI", "<cmd>Telescope lsp_references<cr>", { desc = "LSP Find References (類似 Implementation)" })
+map("n", "gr", "<cmd>Telescope lsp_references<cr>", { desc = "LSP Find References" })
+
 -- Telescope Debug commands
 vim.api.nvim_create_user_command("TelescopeShowIgnorePatterns", function()
   require("configs.telescope_debug").show_ignore_patterns()
