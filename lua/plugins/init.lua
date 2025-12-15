@@ -55,7 +55,7 @@ return {
     build = "cd app && yarn install",
     ft = {"markdown"},
     cmd = {"MarkdownPreview", "MarkdownPreviewStop"}
-  }
+  },
 
 
   -- test new blink
@@ -73,4 +73,58 @@ return {
 
   -- Image preview with custom Telescope + chafa (Windows-compatible)
   -- No additional plugins needed - uses built-in Telescope API
+
+  -- Log file syntax highlighting
+  {
+    "fei6409/log-highlight.nvim",
+    ft = "log", -- Only load for .log files
+    config = function()
+      require("log-highlight").setup {
+        -- Highlight patterns configuration
+        pattern = {
+          -- Error levels (case insensitive)
+          error = "ERROR",
+          warning = "WARN",
+          info = "INFO",
+          debug = "DEBUG",
+          trace = "TRACE",
+          fatal = "FATAL",
+        },
+        -- Extension to auto-detect as log files
+        extension = "log",
+      }
+    end,
+  },
+
+  -- Auto session management
+  {
+    "rmagatti/auto-session",
+    lazy = false, -- Load at startup to restore session
+    config = function()
+      require("auto-session").setup {
+        -- Session save location
+        auto_session_root_dir = vim.fn.stdpath("data") .. "/sessions/",
+
+        -- Auto save session on exit
+        auto_save_enabled = true,
+
+        -- Auto restore session on startup
+        auto_restore_enabled = true,
+
+        -- Suppress session restore prompt
+        auto_session_suppress_dirs = {
+          "~/",
+          "~/Downloads",
+          "~/Desktop",
+          "/",
+        },
+
+        -- Show session restore message
+        auto_session_use_git_branch = false,
+
+        -- Log level (error, warn, info, debug)
+        log_level = "error",
+      }
+    end,
+  },
 }
