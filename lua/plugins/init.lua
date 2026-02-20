@@ -12,19 +12,7 @@ return {
       return require "configs.telescope"
     end,
     config = function(_, opts)
-      -- Force apply our configuration
-      local telescope = require("telescope")
-      telescope.setup(opts)
-
-      -- Verify configuration is applied
-      vim.schedule(function()
-        local config = require("telescope.config").values
-        if config.max_results ~= 1000 then
-          vim.notify("WARNING: Telescope max_results not applied! Value: " .. tostring(config.max_results), vim.log.levels.WARN)
-        else
-          vim.notify("✓ Telescope configured: max_results = 1000", vim.log.levels.INFO)
-        end
-      end)
+      require("telescope").setup(opts)
     end,
   },
 
@@ -35,19 +23,23 @@ return {
       require "configs.lspconfig"
     end,
   },
-  -- add two mason plugin
+  -- mason: 管理所有工具（LSP servers + formatters）
   {
     "williamboman/mason.nvim",
-    opts = require "configs.mason",
+    lazy = false,
+    opts = require "configs.mason",  -- ensure_installed: pyright, black, isort
   },
   {
     "williamboman/mason-lspconfig.nvim",
+    lazy = false,
+    dependencies = { "williamboman/mason.nvim" },
     config = function()
       require("mason-lspconfig").setup {
-        ensure_installed = {"pyright", "black", "isort" },
-	automatic_installation = true,
+        ensure_installed = { "pyright" },  -- 只放 LSP server
+        automatic_installation = false,
+        automatic_enable = false,          -- vim.lsp.enable() 是 nvim 0.11+ API
       }
-    end
+    end,
   },
   -- add markdown preview
   {

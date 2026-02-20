@@ -3,7 +3,10 @@
     "allow": [
       "Bash(powershell.exe -Command \"Test-Path C:\\msys64_2\\usr\\bin\\fd.exe\")",
       "Bash(powershell.exe -Command \"[Environment]::GetEnvironmentVariable(''Path'', ''User'') -split '';'' | Select-String -Pattern ''msys''\")",
-      "Bash(powershell.exe -Command:*)"
+      "Bash(powershell.exe -Command:*)",
+      "Bash(nvim:*)",
+      "Bash(fd:*)",
+      "Bash(dpkg:*)"
     ],
     "deny": [],
     "ask": []

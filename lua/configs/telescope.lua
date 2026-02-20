@@ -26,7 +26,8 @@ local function count_files_in_folder(folder_path, max_count, current_count)
         return current_count
       end
     elseif type == "directory" then
-      local subfolder_path = folder_path .. "\\" .. name
+      local sep = vim.fn.has("win32") == 1 and "\\" or "/"
+      local subfolder_path = folder_path .. sep .. name
       current_count = count_files_in_folder(subfolder_path, max_count, current_count)
       -- Early exit if we've already exceeded the limit
       if current_count > max_count then
@@ -52,7 +53,9 @@ local function scan_large_folders(max_file_count)
   end
 
   -- Convert Unix path to Windows path if needed
-  git_root = git_root:gsub("/", "\\")
+  if vim.fn.has("win32") == 1 then
+    git_root = git_root:gsub("/", "\\")
+  end
 
   local handle = vim.loop.fs_scandir(git_root)
   if not handle then
@@ -67,7 +70,8 @@ local function scan_large_folders(max_file_count)
 
     -- Only check directories (skip files and .git)
     if type == "directory" and name ~= ".git" then
-      local folder_path = git_root .. "\\" .. name
+      local sep = vim.fn.has("win32") == 1 and "\\" or "/"
+      local folder_path = git_root .. sep .. name
       local file_count = count_files_in_folder(folder_path, max_file_count, 0)
 
       if file_count > max_file_count then
@@ -90,7 +94,8 @@ local function parse_gitignore_folders()
     return patterns
   end
 
-  local gitignore_path = git_root .. "\\.gitignore"
+  local sep = vim.fn.has("win32") == 1 and "\\" or "/"
+  local gitignore_path = git_root .. sep .. ".gitignore"
 
   -- Check if .gitignore exists
   if vim.fn.filereadable(gitignore_path) == 0 then
@@ -197,8 +202,9 @@ local function create_smart_previewer()
 
       -- If it's an image, use chafa
       if is_image(path) then
+        local chafa_cmd = vim.fn.has("win32") == 1 and "C:\\msys64_2\\ucrt64\\bin\\chafa.exe" or "chafa"
         return {
-          "C:\\msys64_2\\ucrt64\\bin\\chafa.exe",
+          chafa_cmd,
           "-f", "symbols",
           "-s", "80x40",
           "--animate", "off",
@@ -218,8 +224,8 @@ local options = {
     -- Static ignore patterns (no dynamic scanning for stability)
     file_ignore_patterns = get_base_patterns(),
 
-    -- CRITICAL: Limit results to 1000
-    max_results = 1000,
+    -- Safety net: cap results regardless of search tool
+    max_results = 2000,
 
     -- Use smart previewer that handles images
     buffer_previewer_maker = nil, -- Use default for buffers
@@ -243,17 +249,27 @@ local options = {
       hidden = false,
       follow = false,
 
-      -- Use fd for fast file searching with depth and count limits
-      find_command = {
-        "fd",
-        "--type", "f",              -- Only files
-        "--max-depth", "5",         -- Maximum depth: 5 levels
-        "--max-results", "1000",    -- Maximum results: 1000 files
-        "--hidden",                 -- Include hidden files
-        "--exclude", ".git",        -- Exclude .git folder
-        "--strip-cwd-prefix",       -- Remove current directory prefix
-        "--color", "never",         -- No color output
-      },
+      -- fd 尊重 .gitignore（預設行為，不需額外設定）
+      -- Linux/Mac：timeout 3 fd ...（真正的 3 秒 timeout）
+      -- Windows：--max-results 2000（無對應 timeout 指令）
+      -- fd 未安裝：nil（telescope fallback 到內建 find）
+      find_command = (function()
+        if vim.fn.executable("fd") ~= 1 then return nil end
+        local base = {
+          "fd", "--type", "f",
+          "--hidden",
+          "--exclude", ".git",
+          "--strip-cwd-prefix",
+          "--color", "never",
+        }
+        if vim.fn.has("win32") ~= 1 and vim.fn.executable("timeout") == 1 then
+          -- Linux/Mac: wrap with timeout for 3-second limit
+          return vim.list_extend({"timeout", "3"}, base)
+        else
+          -- Windows fallback: max-results as safety net
+          return vim.list_extend(base, {"--max-results", "2000"})
+        end
+      end)(),
     },
   },
 }
