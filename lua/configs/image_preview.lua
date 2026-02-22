@@ -3,10 +3,12 @@
 
 local M = {}
 
--- Configuration
+-- Configuration（跨平台：Linux/Mac 使用系統 PATH，Windows 使用 MSYS2 路徑）
+local is_windows = vim.fn.has("win32") == 1
+
 M.config = {
-  chafa_path = "C:\\msys64_2\\ucrt64\\bin\\chafa.exe",
-  fd_path = "C:\\msys64_2\\ucrt64\\bin\\fd.exe",
+  chafa_path = is_windows and "C:\\msys64_2\\ucrt64\\bin\\chafa.exe" or "chafa",
+  fd_path    = is_windows and "C:\\msys64_2\\ucrt64\\bin\\fd.exe"    or "fd",
   image_extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "tiff", "tif" },
 }
 
