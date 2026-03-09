@@ -8,6 +8,24 @@ map("n", ";", ":", { desc = "CMD enter command mode" })
 -- 在 Insert 模式下，按 jk 快速回到 Normal 模式（替代 <ESC>）
 map("i", "jk", "<ESC>")
 
+-- =============================================================
+-- Telescope 完整模式（忽略 gitignore，含 max-filesize / max-depth）
+-- 對應預設：<leader>ff -> <leader>fF，<leader>fw -> <leader>fW
+-- =============================================================
+map("n", "<leader>fF", function()
+  require("telescope.builtin").find_files({
+    no_ignore = true,
+    hidden = true,
+    depth = 5,
+  })
+end, { desc = "telescope find files (no gitignore)" })
+
+map("n", "<leader>fW", function()
+  require("telescope.builtin").live_grep({
+    additional_args = { "--no-ignore", "--max-filesize", "500K" },
+  })
+end, { desc = "telescope live grep (no gitignore)" })
+
 -- Telescope LSP 符號搜尋（類似 VSCode Ctrl+Shift+O）
 map("n", "<leader>o", "<cmd>Telescope lsp_document_symbols<cr>", { desc = "LSP 顯示文件符號列表" })
 map("n", "<leader>O", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", { desc = "LSP 顯示工作區符號列表" })

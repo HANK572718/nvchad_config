@@ -1,4 +1,32 @@
 return {
+  -- nvim-tree：覆寫 H 同時 toggle dotfiles + gitignore 兩個 filter
+  {
+    "nvim-tree/nvim-tree.lua",
+    opts = function()
+      local default_opts = require("nvchad.configs.nvimtree")
+      local api = require("nvim-tree.api")
+
+      local original_on_attach = default_opts.on_attach
+
+      default_opts.on_attach = function(bufnr)
+        -- 載入 NvChad 預設所有按鍵
+        if original_on_attach then
+          original_on_attach(bufnr)
+        else
+          api.config.mappings.default_on_attach(bufnr)
+        end
+
+        -- 覆寫 H：切換 gitignore filter（.venv / logs 都是 gitignored，非 dotfiles）
+        -- NvChad 預設 dotfiles=false 已顯示，不需額外 toggle_hidden_filter
+        vim.keymap.set("n", "H", function()
+          api.tree.toggle_gitignore_filter()
+        end, { buffer = bufnr, noremap = true, desc = "Toggle gitignore filter" })
+      end
+
+      return default_opts
+    end,
+  },
+
   -- 程式碼格式化工具（Formatter）
   {
     "stevearc/conform.nvim",
