@@ -24,4 +24,16 @@ M.base46 = {
 --      }
 -- }
 
+-- 懸浮終端機視窗大小設定（預設 0.5 x 0.4 太小）
+M.term = {
+  float = {
+    relative = "editor",
+    row = 0.1,
+    col = 0.1,
+    width = 0.8,
+    height = 0.7,
+    border = "single",
+  },
+}
+
 return M
