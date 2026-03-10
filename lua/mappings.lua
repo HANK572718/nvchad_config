@@ -9,6 +9,18 @@ map("n", ";", ":", { desc = "CMD enter command mode" })
 map("i", "jk", "<ESC>")
 
 -- =============================================================
+-- Ctrl+U/D 滾動：insert / terminal mode 直接可用
+-- insert mode：<C-\><C-o> 執行一次 normal 指令後自動回 insert mode
+-- terminal mode：退出 terminal mode 後滾動（停在 N-TERMINAL）
+-- 原 insert built-in：<C-U>=刪到行首、<C-D>=取消縮排（已確認不需要）
+-- 原 terminal 功能：<C-U>=shell清行、<C-D>=EOF（已確認不需要）
+-- =============================================================
+map("i", "<C-u>", "<Esc><C-u>", { desc = "Scroll up (exit insert → normal)" })
+map("i", "<C-d>", "<Esc><C-d>", { desc = "Scroll down (exit insert → normal)" })
+map("t", "<C-u>", "<C-\\><C-n><C-u>", { desc = "Scroll up (terminal)" })
+map("t", "<C-d>", "<C-\\><C-n><C-d>", { desc = "Scroll down (terminal)" })
+
+-- =============================================================
 -- Telescope 完整模式（忽略 gitignore，含 max-filesize / max-depth）
 -- 對應預設：<leader>ff -> <leader>fF，<leader>fw -> <leader>fW
 -- =============================================================
@@ -73,18 +85,27 @@ map("n", "<leader>du", function() require("dapui").toggle() end,          { desc
 -- map({ "n", "i", "v" }, "<C-s>", "<cmd> w <cr>")
 
 -- 快速切換 tab（NvChad tabufline）
--- <A-n>：Alt+數字，適用終端機 / SSH 所有平台
+-- <A-n>：Alt+數字，適用 normal / insert / terminal mode
 -- <D-n>：Cmd+數字，僅限 Mac/Windows Neovide GUI
 local function goto_tab(i)
   local bufs = vim.t.bufs
-  if bufs and bufs[i] then
-    require("nvchad.tabufline").goto_buf(bufs[i])
+  if not (bufs and bufs[i]) then return end
+
+  local mode = vim.api.nvim_get_mode().mode
+  if mode == "i" or mode == "ic" or mode == "ix" then
+    -- insert mode：先退出再切，避免新 buffer 也進入 insert mode
+    vim.cmd "stopinsert"
   end
+  -- terminal mode：直接切即可，Neovim 換 buffer 時自動退出 terminal mode
+  require("nvchad.tabufline").goto_buf(bufs[i])
 end
 
--- 綁定 Alt+1~9 與（GUI 模式下）Cmd/Win+1~9 切換 buffer
+-- 綁定 Alt+1~9：normal / insert / terminal 三個 mode 均有效
 for i = 1, 9 do
-  map("n", "<A-" .. i .. ">", function() goto_tab(i) end, { desc = "Tab " .. i .. "（Alt）" })
+  local desc = "Tab " .. i .. "（Alt）"
+  map("n", "<A-" .. i .. ">", function() goto_tab(i) end, { desc = desc })
+  map("i", "<A-" .. i .. ">", function() goto_tab(i) end, { desc = desc })
+  map("t", "<A-" .. i .. ">", function() goto_tab(i) end, { desc = desc })
   if vim.fn.has("gui_running") == 1 or vim.g.neovide then
     map("n", "<D-" .. i .. ">", function() goto_tab(i) end, { desc = "Tab " .. i .. "（Cmd/Win GUI）" })
   end
