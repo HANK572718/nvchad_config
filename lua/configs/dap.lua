@@ -80,28 +80,6 @@ dapui.setup({
     repl = "r",
     toggle = "t",
   },
-  layouts = {
-    {
-      -- 左側欄：變量範圍 + 斷點 + 調用棧 + 監視
-      elements = {
-        { id = "scopes",      size = 0.30 },
-        { id = "breakpoints", size = 0.20 },
-        { id = "stacks",      size = 0.30 },
-        { id = "watches",     size = 0.20 },
-      },
-      size = 40,
-      position = "left",
-    },
-    {
-      -- 底部欄：REPL + 控制台
-      elements = {
-        { id = "repl",    size = 0.5 },
-        { id = "console", size = 0.5 },
-      },
-      size = 10,
-      position = "bottom",
-    },
-  },
   floating = {
     border = "single",
     mappings = { close = { "q", "<Esc>" } },
@@ -133,3 +111,10 @@ dap_python.test_runner = "pytest"
 for _, config in ipairs(dap.configurations.python or {}) do
   config.pythonPath = find_project_python
 end
+
+-- ----------------------------------------------------------------
+-- 5. 載入專案自訂 launch.json（若存在 .vscode/launch.json）
+-- ----------------------------------------------------------------
+-- 優先級高於上方預設 config，讓各專案能自訂 cwd / program / args
+-- filetypes 對應表：告知哪些 type 屬於 python adapter
+require("dap.ext.vscode").load_launchjs(nil, { python = { "python" } })

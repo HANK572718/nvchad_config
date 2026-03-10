@@ -34,6 +34,10 @@ map("n", "<leader>O", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", { desc
 map("n", "gI", "<cmd>Telescope lsp_references<cr>", { desc = "LSP Find References (類似 Implementation)" })
 map("n", "gr", "<cmd>Telescope lsp_references<cr>", { desc = "LSP Find References" })
 
+-- LSP Call Hierarchy（呼叫階層）
+map("n", "<leader>ci", "<cmd>Telescope lsp_incoming_calls<cr>", { desc = "LSP Incoming Calls（誰呼叫了我）" })
+map("n", "<leader>co", "<cmd>Telescope lsp_outgoing_calls<cr>", { desc = "LSP Outgoing Calls（我呼叫了誰）" })
+
 -- Telescope 除錯用自訂命令（:TelescopeXxx 開頭）
 vim.api.nvim_create_user_command("TelescopeShowIgnorePatterns", function()
   require("configs.telescope_debug").show_ignore_patterns()
