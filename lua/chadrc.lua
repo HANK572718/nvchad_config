@@ -24,7 +24,56 @@ M.base46 = {
 --      }
 -- }
 
+-- ── Tabufline：動態縮減 tab 寬度，讓所有 buffer 都能顯示 ──────────
 M.ui = {
+  tabufline = {
+    modules = {
+      buffers = function()
+        local api = vim.api
+        local utils = require "nvchad.tabufline.utils"
+
+        -- 清除無效 buffer
+        vim.t.bufs = vim.tbl_filter(api.nvim_buf_is_valid, vim.t.bufs)
+        local bufs = vim.t.bufs
+
+        if #bufs == 0 then
+          return utils.txt("%=", "Fill")
+        end
+
+        -- 計算 NvimTree 佔用寬度
+        local tree_w = 0
+        for _, win in pairs(api.nvim_tabpage_list_wins(0)) do
+          if vim.bo[api.nvim_win_get_buf(win)].ft == "NvimTree" then
+            tree_w = api.nvim_win_get_width(win) + 1  -- +1 for separator
+            break
+          end
+        end
+
+        -- 計算 vim tabpages 佔用寬度（>1 個 tabpage 才顯示）
+        local tabpages_w = 0
+        if vim.fn.tabpagenr "$" > 1 then
+          tabpages_w = vim.fn.tabpagenr "$" * 4 + 14
+        end
+
+        -- btns 模組：toggle_theme(4) + close_all(4) = 8 欄
+        local btns_w = 8
+
+        local space = vim.o.columns - tree_w - tabpages_w - btns_w
+
+        -- 動態寬度：每個 tab 最小 10、最大 21（NvChad 預設值）
+        local MIN_W, MAX_W = 10, 21
+        local w = math.min(MAX_W, math.max(MIN_W, math.floor(space / #bufs)))
+
+        local result = {}
+        for i, nr in ipairs(bufs) do
+          table.insert(result, utils.style_buf(nr, i, w))
+        end
+
+        return table.concat(result) .. utils.txt("%=", "Fill")
+      end,
+    },
+  },
+
   statusline = {
     modules = {
 

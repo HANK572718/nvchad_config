@@ -2,6 +2,12 @@ require "nvchad.options"
 
 -- add yours here!
 
+-- Use PowerShell 7 as default shell for :terminal and shell commands
+vim.opt.shell = "pwsh"
+vim.opt.shellcmdflag = "-NoLogo -NonInteractive -Command"
+vim.opt.shellquote = ""
+vim.opt.shellxquote = ""
+
 -- local o = vim.o
 -- o.cursorlineopt ='both' -- to enable cursorline!
 
