@@ -220,9 +220,24 @@ local function create_smart_previewer()
 end
 
 local options = {
+  extensions = {
+    live_grep_args = {
+      -- 關閉 auto_quoting：預設會將整個 prompt 視為單一字串，導致 -- -t py 無法被解析
+      auto_quoting = false,
+    },
+  },
   defaults = {
     -- Static ignore patterns (no dynamic scanning for stability)
     file_ignore_patterns = get_base_patterns(),
+
+    -- 二階段搜尋：live grep 結果 → <C-space> 切換成 fuzzy filter 再縮小
+    mappings = {
+      i = {
+        -- <C-space> 在 SSH/tmux 下常被轉為 NUL 無法使用，改用 <C-f>
+        -- 用途：live grep 結果出來後按 <C-f> 切換成 fuzzy filter 二階段縮小
+        ["<C-f>"] = require("telescope.actions").to_fuzzy_refine,
+      },
+    },
 
     -- Safety net: cap results regardless of search tool
     max_results = 2000,

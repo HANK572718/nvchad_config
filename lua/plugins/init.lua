@@ -37,11 +37,16 @@ return {
   -- Telescope 模糊搜尋（含自訂忽略清單與圖片預覽）
   {
     "nvim-telescope/telescope.nvim",
+    dependencies = {
+      "nvim-telescope/telescope-live-grep-args.nvim",
+    },
     opts = function()
       return require "configs.telescope"
     end,
     config = function(_, opts)
-      require("telescope").setup(opts)
+      local telescope = require "telescope"
+      telescope.setup(opts)
+      telescope.load_extension "live_grep_args"
     end,
   },
 
@@ -67,7 +72,7 @@ return {
       require("mason-lspconfig").setup {
         ensure_installed = { "pyright" },  -- 僅列 LSP server（formatter 由 Mason 直接管）
         automatic_installation = false,
-        automatic_enable = true,
+        automatic_enable = false,  -- 由 configs/lspconfig.lua 統一用 vim.lsp.enable() 管理
       }
     end,
   },

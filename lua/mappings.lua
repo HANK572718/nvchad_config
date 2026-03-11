@@ -33,10 +33,12 @@ map("n", "<leader>fF", function()
 end, { desc = "telescope find files (no gitignore)" })
 
 map("n", "<leader>fW", function()
-  require("telescope.builtin").live_grep({
-    additional_args = { "--no-ignore", "--max-filesize", "500K" },
+  require("telescope").extensions.live_grep_args.live_grep_args({
+    additional_args = function(args)
+      return vim.list_extend(args, { "--no-ignore", "--max-filesize", "500K" })
+    end,
   })
-end, { desc = "telescope live grep (no gitignore)" })
+end, { desc = "telescope live grep args (no gitignore) | 範例: foo -- -t py -g '!test_*'" })
 
 -- Telescope LSP 符號搜尋（類似 VSCode Ctrl+Shift+O）
 map("n", "<leader>o", "<cmd>Telescope lsp_document_symbols<cr>", { desc = "LSP 顯示文件符號列表" })
@@ -47,8 +49,57 @@ map("n", "gI", "<cmd>Telescope lsp_references<cr>", { desc = "LSP Find Reference
 map("n", "gr", "<cmd>Telescope lsp_references<cr>", { desc = "LSP Find References" })
 
 -- LSP Call Hierarchy（呼叫階層）
-map("n", "<leader>ci", "<cmd>Telescope lsp_incoming_calls<cr>", { desc = "LSP Incoming Calls（誰呼叫了我）" })
-map("n", "<leader>co", "<cmd>Telescope lsp_outgoing_calls<cr>", { desc = "LSP Outgoing Calls（我呼叫了誰）" })
+-- Pyright 已知 bug：callHierarchy 回傳重複結果，自行去重後送 Telescope
+local function call_hierarchy_picker(direction)
+  local params = vim.lsp.util.make_position_params()
+  vim.lsp.buf_request(0, "textDocument/prepareCallHierarchy", params, function(err, result)
+    if err or not result or #result == 0 then
+      vim.notify("No call hierarchy item at cursor", vim.log.levels.WARN)
+      return
+    end
+    local method = direction == "incoming"
+      and "callHierarchy/incomingCalls"
+      or  "callHierarchy/outgoingCalls"
+    vim.lsp.buf_request(0, method, { item = result[1] }, function(err2, calls)
+      if err2 or not calls then return end
+      local seen, entries = {}, {}
+      for _, call in ipairs(calls) do
+        -- incoming: call.from + call.fromRanges；outgoing: call.to + call.fromRanges
+        local target = direction == "incoming" and call.from or call.to
+        for _, range in ipairs(call.fromRanges) do
+          local key = target.uri .. range.start.line .. range.start.character
+          if not seen[key] then
+            seen[key] = true
+            table.insert(entries, {
+              filename = vim.uri_to_fname(target.uri),
+              lnum     = range.start.line + 1,
+              col      = range.start.character + 1,
+              text     = target.name,
+            })
+          end
+        end
+      end
+      if #entries == 0 then
+        vim.notify("No calls found", vim.log.levels.INFO)
+        return
+      end
+      local pickers    = require "telescope.pickers"
+      local finders    = require "telescope.finders"
+      local conf       = require("telescope.config").values
+      local make_entry = require "telescope.make_entry"
+      local title = direction == "incoming" and "Incoming Calls" or "Outgoing Calls"
+      pickers.new({}, {
+        prompt_title = title,
+        finder   = finders.new_table { results = entries, entry_maker = make_entry.gen_from_quickfix() },
+        sorter   = conf.generic_sorter {},
+        previewer = conf.qflist_previewer {},
+      }):find()
+    end)
+  end)
+end
+
+map("n", "<leader>ci", function() call_hierarchy_picker("incoming") end, { desc = "LSP Incoming Calls（誰呼叫了我）" })
+map("n", "<leader>co", function() call_hierarchy_picker("outgoing") end, { desc = "LSP Outgoing Calls（我呼叫了誰）" })
 
 -- Telescope 除錯用自訂命令（:TelescopeXxx 開頭）
 vim.api.nvim_create_user_command("TelescopeShowIgnorePatterns", function()
