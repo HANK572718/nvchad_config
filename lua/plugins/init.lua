@@ -77,11 +77,18 @@ return {
     end,
   },
   -- Markdown 即時預覽（在瀏覽器中顯示渲染結果）
+  -- SSH 使用方式：執行 :MarkdownPreview，從 cmdline 複製 URL，在 SSH client 瀏覽器開啟
   {
     "iamcco/markdown-preview.nvim",
     build = "cd app && yarn install",
-    ft = {"markdown"},
-    cmd = {"MarkdownPreview", "MarkdownPreviewStop"}
+    ft = { "markdown" },
+    cmd = { "MarkdownPreview", "MarkdownPreviewStop" },
+    init = function()
+      vim.g.mkdp_open_to_the_world = 1  -- bind 0.0.0.0，讓 SSH client 可從外部 IP 存取
+      vim.g.mkdp_echo_preview_url  = 1  -- 在 cmdline 顯示完整 URL（含 port）
+      vim.g.mkdp_browser           = "" -- 不嘗試在 Windows 本機開瀏覽器
+      vim.g.mkdp_port              = "8090" -- 固定 port，方便記憶或設 SSH tunnel
+    end,
   },
 
 
