@@ -120,6 +120,13 @@ map("n", "<leader>fp", function()
 end, { desc = "瀏覽圖片（Image Browser）" })
 
 -- =============================================================
+-- DB UI 快捷鍵（SQLite / 資料庫瀏覽器）
+-- =============================================================
+map("n", "<leader>Dt", "<cmd>DBUIToggle<cr>",          { desc = "DB Toggle UI" })
+map("n", "<leader>Da", "<cmd>DBUIAddConnection<cr>",   { desc = "DB Add Connection" })
+map("n", "<leader>Df", "<cmd>DBUIFindBuffer<cr>",      { desc = "DB Find Buffer" })
+
+-- =============================================================
 -- DAP 快捷鍵（Python 調試）
 -- =============================================================
 map("n", "<F5>",       function() require("dap").continue() end,          { desc = "DAP Continue/Start" })
