@@ -607,9 +607,10 @@ modify_account() {
     echo "  6. Set account expiry date"
     echo "  7. Expire password (force change on next login)"
     echo -e "  ${CYAN}8. 桌面群組健康檢查與修復${NC}  ← 修復 video/audio/input 等群組缺失"
-    echo "  9. Back"
+    echo -e "  ${CYAN}9. 修復家目錄權限${NC}           ← 解決 SCP/SSH 寫入 Permission denied"
+    echo "  10. Back"
     echo ""
-    read -rp "$(echo -e "${YELLOW}Option (1-9): ${NC}")" sub
+    read -rp "$(echo -e "${YELLOW}Option (1-10): ${NC}")" sub
 
     case "$sub" in
         1)
@@ -676,7 +677,65 @@ modify_account() {
                 print_warn "需要重新登入後群組設定才會完全生效。"
             fi
             ;;
-        9) return ;;
+        9)
+            echo ""
+            local homedir
+            homedir=$(getent passwd "$username" | cut -d: -f6)
+            print_info "家目錄：${homedir}"
+            echo ""
+
+            # 顯示目前狀態
+            echo -e "${CYAN}目前家目錄狀態：${NC}"
+            ls -la "$homedir" 2>/dev/null | head -5 || print_error "無法讀取家目錄"
+            echo ""
+            local owner
+            owner=$(stat -c '%U:%G' "$homedir" 2>/dev/null)
+            local perms
+            perms=$(stat -c '%a' "$homedir" 2>/dev/null)
+            printf "  %-20s %s\n" "擁有者：" "$owner"
+            printf "  %-20s %s\n" "權限：" "$perms"
+
+            if [[ "$owner" != "${username}:${username}" ]]; then
+                print_warn "擁有者不正確（應為 ${username}:${username}，實際為 ${owner}）"
+            fi
+            if [[ "$perms" != "755" && "$perms" != "750" && "$perms" != "700" ]]; then
+                print_warn "權限可能不正確（目前 ${perms}，建議 755 或 700）"
+            fi
+
+            echo ""
+            echo -e "${YELLOW}選擇修復操作：${NC}"
+            echo "  1. 修復擁有者（chown -R username:username）"
+            echo "  2. 修復目錄權限為 755"
+            echo "  3. 修復目錄權限為 700（更安全）"
+            echo "  4. 全部修復（擁有者 + 權限 755）"
+            echo "  5. 取消"
+            read -rp "$(echo -e "${YELLOW}選擇 (1-5): ${NC}")" fix_opt
+
+            case "$fix_opt" in
+                1)
+                    chown -R "$username:$username" "$homedir" && \
+                        print_success "擁有者已修正為 ${username}:${username}" || \
+                        print_error "修復失敗"
+                    ;;
+                2)
+                    chmod 755 "$homedir" && \
+                        print_success "家目錄權限已設為 755" || \
+                        print_error "修復失敗"
+                    ;;
+                3)
+                    chmod 700 "$homedir" && \
+                        print_success "家目錄權限已設為 700" || \
+                        print_error "修復失敗"
+                    ;;
+                4)
+                    chown -R "$username:$username" "$homedir" && chmod 755 "$homedir" && \
+                        print_success "家目錄擁有者與權限均已修正" || \
+                        print_error "修復失敗"
+                    ;;
+                *) print_info "取消。" ;;
+            esac
+            ;;
+        10) return ;;
         *) print_error "Invalid option." ;;
     esac
     pause
