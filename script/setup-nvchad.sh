@@ -52,10 +52,25 @@ detect_pkg_manager
 info "使用套件管理器：$PKG"
 $PKG_UPDATE
 
-PACKAGES=(git curl wget build-essential gcc make ripgrep nodejs npm libreadline-dev)
+PACKAGES=(git curl wget build-essential gcc make ripgrep libreadline-dev)
 
 info "安裝系統套件..."
 $PKG_INSTALL "${PACKAGES[@]}"
+
+# nodejs / npm：nodesource 版本已內建 npm，不可再裝 apt 的 npm（會衝突）
+if command -v node &>/dev/null && node --version | grep -qE '^v(1[6-9]|[2-9][0-9])'; then
+  success "Node.js $(node --version) 已安裝（跳過 apt nodejs/npm）"
+else
+  info "安裝 nodejs..."
+  $PKG_INSTALL nodejs
+fi
+
+if ! command -v npm &>/dev/null; then
+  # 只在 npm 真的不存在時才嘗試從 apt 裝（非 nodesource 環境）
+  $PKG_INSTALL npm 2>/dev/null || warn "npm 安裝失敗，請手動處理"
+else
+  success "npm $(npm --version) 已可用"
+fi
 
 # Neovim：從 GitHub Releases 安裝最新版（確保 >= 0.11）
 install_neovim() {
