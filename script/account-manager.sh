@@ -143,6 +143,150 @@ PROTECTED_ACCOUNTS=("root" "daemon" "bin" "sys" "sync" "games" "man" "lp"
                     "mail" "news" "uucp" "proxy" "www-data" "backup" "list"
                     "irc" "gnats" "nobody")
 
+# --- Desktop / hardware groups (subset that actually exists on this system) --
+# These are required for normal desktop/GUI/device access.
+# Absence of these groups causes: no audio, no GPU, no USB, no Bluetooth, etc.
+DESKTOP_GROUPS_DEFS=(
+    "video:GPU 存取、螢幕錄製（缺少會導致桌面加速失效）"
+    "audio:音效裝置（缺少無法播放音效）"
+    "render:GPU 算圖（Vulkan / OpenCL 加速）"
+    "input:鍵盤滑鼠觸控（X11/Wayland 輸入設備）"
+    "plugdev:USB 隨插即用裝置"
+    "netdev:使用者管理網路介面（NetworkManager）"
+    "bluetooth:藍牙裝置"
+    "dialout:序列埠 / GPIO / Arduino"
+    "cdrom:光碟機存取"
+    "scanner:掃描器"
+    "lpadmin:印表機管理"
+    "kvm:KVM 虛擬機存取"
+    "docker:Docker（免 sudo 執行容器）"
+)
+
+# Build list of groups that actually exist on this system
+get_available_desktop_groups() {
+    local result=()
+    for entry in "${DESKTOP_GROUPS_DEFS[@]}"; do
+        local grp="${entry%%:*}"
+        getent group "$grp" &>/dev/null && result+=("$grp")
+    done
+    echo "${result[@]}"
+}
+
+# Get description for a group
+get_group_desc() {
+    local target="$1"
+    for entry in "${DESKTOP_GROUPS_DEFS[@]}"; do
+        [[ "${entry%%:*}" == "$target" ]] && echo "${entry#*:}" && return
+    done
+    echo ""
+}
+
+# Interactive checklist to select and apply desktop groups to a user
+# Usage: select_and_apply_groups <username> [auto]
+#   auto = skip prompt, apply all recommended groups silently
+select_and_apply_groups() {
+    local username="$1"
+    local mode="${2:-interactive}"
+
+    # Build whiptail checklist items
+    local items=()
+    local available_groups
+    read -ra available_groups <<< "$(get_available_desktop_groups)"
+
+    for grp in "${available_groups[@]}"; do
+        local desc
+        desc=$(get_group_desc "$grp")
+        # Pre-check if user already in group OR it's a core group
+        local state="OFF"
+        if user_in_group "$username" "$grp"; then
+            state="ON"
+        elif [[ "$grp" =~ ^(video|audio|render|input|plugdev|netdev|bluetooth)$ ]]; then
+            state="ON"
+        fi
+        items+=("$grp" "$desc" "$state")
+    done
+
+    if [[ "$mode" == "auto" ]]; then
+        # Apply all pre-checked groups without prompting
+        for ((i=0; i<${#items[@]}; i+=3)); do
+            local grp="${items[$i]}"
+            local chk="${items[$((i+2))]}"
+            [[ "$chk" == "ON" ]] && usermod -aG "$grp" "$username" 2>/dev/null
+        done
+        return 0
+    fi
+
+    # Interactive checklist
+    if ! command -v whiptail &>/dev/null; then
+        print_warn "whiptail not found, skipping group selection."
+        return 1
+    fi
+
+    local selected
+    selected=$(whiptail --title "群組權限設定 — ${username}" \
+        --checklist "選擇要加入的群組（空白鍵切換、Enter 確認）：\n缺少 video/audio/input 會導致桌面功能異常！" \
+        25 72 12 \
+        "${items[@]}" \
+        3>&1 1>&2 2>&3)
+    [[ $? -ne 0 ]] && return 1
+
+    # Remove quotes from whiptail output
+    selected=$(echo "$selected" | tr -d '"')
+
+    if [[ -z "$selected" ]]; then
+        print_warn "未選擇任何群組。"
+        return 0
+    fi
+
+    local added=() skipped=()
+    for grp in $selected; do
+        if usermod -aG "$grp" "$username" 2>/dev/null; then
+            added+=("$grp")
+        else
+            skipped+=("$grp")
+        fi
+    done
+
+    [[ ${#added[@]}   -gt 0 ]] && print_success "已加入群組：${added[*]}"
+    [[ ${#skipped[@]} -gt 0 ]] && print_warn    "加入失敗：${skipped[*]}"
+    return 0
+}
+
+# Show diff between current groups and recommended desktop groups
+show_group_diff() {
+    local username="$1"
+    local available_groups
+    read -ra available_groups <<< "$(get_available_desktop_groups)"
+
+    echo -e "${CYAN}--- 群組健康檢查：${username} ---${NC}"
+    printf "  %-16s %-8s %s\n" "群組" "狀態" "說明"
+    echo "  ------------------------------------------------------------------"
+
+    local missing=0
+    for grp in "${available_groups[@]}"; do
+        local desc
+        desc=$(get_group_desc "$grp")
+        if user_in_group "$username" "$grp"; then
+            printf "  ${GREEN}%-16s [有]${NC}    %s\n" "$grp" "$desc"
+        else
+            # Only flag as warning for important groups
+            if [[ "$grp" =~ ^(video|audio|render|input|plugdev|netdev|bluetooth|dialout)$ ]]; then
+                printf "  ${RED}%-16s [缺]${NC}    %s\n" "$grp" "$desc"
+                ((missing++))
+            else
+                printf "  ${GRAY}%-16s [無]${NC}    %s\n" "$grp" "$desc"
+            fi
+        fi
+    done
+
+    echo ""
+    if [[ $missing -gt 0 ]]; then
+        print_warn "偵測到 ${missing} 個重要群組缺失（標記為 [缺]），可能影響桌面功能。"
+    else
+        print_success "所有重要群組均已設定。"
+    fi
+}
+
 is_protected() {
     local name="$1"
     for p in "${PROTECTED_ACCOUNTS[@]}"; do
@@ -223,13 +367,23 @@ create_account() {
 
     # --- SSH access ----------------------------------------------------------
     if confirm_yes_no "Allow SSH login for this account?"; then
-        # Ensure ~/.ssh directory exists with correct perms
         local ssh_dir="$homedir/.ssh"
         mkdir -p "$ssh_dir"
         chmod 700 "$ssh_dir"
         chown "$username:$username" "$ssh_dir"
         print_success "SSH directory created at $ssh_dir"
         print_info  "To add a public key: nano $ssh_dir/authorized_keys"
+    fi
+
+    # --- Desktop / hardware groups -------------------------------------------
+    echo ""
+    print_header "桌面與硬體群組設定"
+    print_info "缺少 video / audio / input 等群組會導致：無法播音、GPU 加速失效、輸入裝置異常。"
+    echo ""
+    if confirm_yes_no "設定桌面/硬體群組權限（強烈建議）？"; then
+        select_and_apply_groups "$username" "interactive"
+    else
+        print_warn "跳過群組設定。若之後桌面功能異常，請至「修改帳號設定 → 修復桌面群組」補設。"
     fi
 
     # --- Summary -------------------------------------------------------------
@@ -298,6 +452,15 @@ change_password() {
                 print_warn "This account now has full administrative (sudo) access!"
             fi
         fi
+    fi
+
+    # --- Group health check & repair -----------------------------------------
+    echo ""
+    print_header "桌面群組健康檢查"
+    show_group_diff "$username"
+    echo ""
+    if confirm_yes_no "重新設定桌面/硬體群組權限？"; then
+        select_and_apply_groups "$username" "interactive"
     fi
 
     echo ""
@@ -443,9 +606,10 @@ modify_account() {
     echo "  5. Change shell"
     echo "  6. Set account expiry date"
     echo "  7. Expire password (force change on next login)"
-    echo "  8. Back"
+    echo -e "  ${CYAN}8. 桌面群組健康檢查與修復${NC}  ← 修復 video/audio/input 等群組缺失"
+    echo "  9. Back"
     echo ""
-    read -rp "$(echo -e "${YELLOW}Option (1-8): ${NC}")" sub
+    read -rp "$(echo -e "${YELLOW}Option (1-9): ${NC}")" sub
 
     case "$sub" in
         1)
@@ -476,7 +640,7 @@ modify_account() {
         5)
             echo -e "  Current shell: ${CYAN}$(getent passwd "$username" | cut -d: -f7)${NC}"
             echo "  Available shells:"
-            cat /etc/shells | grep -v '^#' | sed 's/^/    /'
+            grep -v '^#' /etc/shells | sed 's/^/    /'
             read -rp "$(echo -e "${YELLOW}Enter new shell path: ${NC}")" newshell
             if grep -qx "$newshell" /etc/shells 2>/dev/null; then
                 usermod -s "$newshell" "$username" && \
@@ -500,7 +664,19 @@ modify_account() {
                 print_success "Password expired. '$username' must change password on next login." || \
                 print_error "Failed."
             ;;
-        8) return ;;
+        8)
+            echo ""
+            show_group_diff "$username"
+            echo ""
+            if confirm_yes_no "開啟群組選擇介面進行修復？"; then
+                select_and_apply_groups "$username" "interactive"
+                echo ""
+                print_success "修復完成，目前群組："
+                printf "  %s\n" "$(get_user_groups "$username")"
+                print_warn "需要重新登入後群組設定才會完全生效。"
+            fi
+            ;;
+        9) return ;;
         *) print_error "Invalid option." ;;
     esac
     pause
