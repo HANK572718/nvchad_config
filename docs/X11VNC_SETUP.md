@@ -1,7 +1,68 @@
-# 快速部署指南（從零開始設定相同環境）
+# Jetson Orin Nano 遠端桌面 + 顯示設定
+
+## 快速上手（新機器只需這三步）
+
+### 前置：關閉 Wayland，啟用自動登入（一次性手動設定）
+
+```bash
+sudo nano /etc/gdm3/custom.conf
+```
+
+```ini
+[daemon]
+WaylandEnable=false
+AutomaticLoginEnable=true
+AutomaticLogin=nvidia
+```
+
+### 執行兩支腳本，全部搞定
+
+```bash
+# 1. VNC Server（x11vnc + systemd service）
+sudo bash ~/.config/nvim/script/setup_x11vnc.sh
+
+# 2. 顯示設定（xorg.conf + 開機自動套用 60Hz）
+sudo bash ~/.config/nvim/script/setup-display.sh
+```
+
+部署完成後重開機，VNC port 5900 即可連線，實體螢幕亦會正常顯示。
+
+### AnyDesk（選用，ARM64 需手動安裝）
+
+```bash
+# 從官網下載 ARM64 .deb（https://anydesk.com/en/downloads/linux）
+wget https://download.anydesk.com/linux/anydesk_<版本>_arm64.deb
+sudo dpkg -i anydesk_<版本>_arm64.deb && sudo apt-get install -f
+sudo systemctl enable --now anydesk
+```
+
+> 無人值守密碼**只能透過 GUI 設定**（CLI `--set-password` 在 v8 無效）。詳見文末 AnyDesk 章節。
+
+### 連線資訊
+
+| 工具 | 位址 |
+|------|------|
+| VNC | `192.168.137.124:5900` |
+| AnyDesk | ID：`637260884` |
+
+### 硬體注意事項
+
+| 連接器 | 顯示輸出 |
+|--------|----------|
+| DisplayPort（全尺寸 DP） | ✅ 唯一顯示輸出，接 HDMI 螢幕須用 DP→HDMI 轉接器 |
+| USB-C | ❌ 僅 USB 資料，不支援顯示（NVIDIA 官方確認） |
+
+> 雙螢幕唯一方案：**DisplayPort MST Hub**（主動式分流器）。
+
+---
+
+---
+
+# 詳細部署說明
 
 ## 環境資訊
-- 裝置：NVIDIA Jetson (aarch64)，Ubuntu 22.04.5 LTS
+
+- 裝置：NVIDIA Jetson Orin Nano (aarch64)，Ubuntu 22.04.5 LTS
 - 主機名稱：yuan-6n0cnx
 - IP：192.168.137.124 / 192.168.55.1
 - 使用者：nvidia（UID 1000）、suser（UID 1001）
@@ -16,7 +77,6 @@
 sudo nano /etc/gdm3/custom.conf
 ```
 
-內容：
 ```ini
 [daemon]
 WaylandEnable=false
@@ -24,132 +84,80 @@ AutomaticLoginEnable=true
 AutomaticLogin=nvidia
 ```
 
----
-
-## Step 2：設定 xorg.conf（NVIDIA headless + 有螢幕兩用）
-
-```bash
-sudo nano /etc/X11/xorg.conf
-```
-
-內容：
-```
-Section "Module"
-    Disable     "dri"
-    SubSection  "extmod"
-        Option  "omit xfree86-dga"
-    EndSubSection
-EndSection
-
-Section "Device"
-    Identifier  "Tegra0"
-    Driver      "nvidia"
-    Option      "AllowEmptyInitialConfiguration" "true"
-    Option      "ConnectedMonitor" "DP-0"
-    Option      "ModeValidation" "AllowNonEdidModes, NoEdidMaxPClkCheck, NoMaxPClkCheck"
-EndSection
-
-Section "Monitor"
-    Identifier  "Monitor0"
-    HorizSync   28.0-80.0
-    VertRefresh 48.0-75.0
-    Modeline    "1920x1080" 148.50 1920 2008 2052 2200 1080 1084 1089 1125 +hsync +vsync
-EndSection
-
-Section "Screen"
-    Identifier  "Screen0"
-    Device      "Tegra0"
-    Monitor     "Monitor0"
-    DefaultDepth 24
-    SubSection "Display"
-        Depth   24
-        Modes   "1920x1080"
-    EndSubSection
-EndSection
-```
-
-> **重點**：`ConnectedMonitor "DP-0"` 讓 NVIDIA driver 在無 HDMI 時仍建立虛擬 framebuffer，VNC 才有畫面可捕捉。
+> **原因**：x11vnc 與 AnyDesk 均依賴 X11，Wayland 下無法截取畫面。
+> 自動登入確保重開機後 nvidia user session 立即建立，VNC 不需等待手動登入。
 
 ---
 
-## Step 3：安裝 x11vnc
-
-```bash
-sudo apt-get install -y x11vnc
-sudo mkdir -p /etc/x11vnc
-sudo x11vnc -storepasswd /etc/x11vnc/passwd
-```
-
----
-
-## Step 4：部署 x11vnc wrapper + systemd service
-
-### 方式一：使用設定腳本（推薦）
+## Step 2：部署 VNC Server
 
 ```bash
 sudo bash ~/.config/nvim/script/setup_x11vnc.sh
 ```
 
-腳本會自動安裝 wrapper script 並建立 service。
+腳本會自動完成：安裝 x11vnc、設定密碼、部署 wrapper script、建立並啟動 systemd service。
 
-### 方式二：手動部署
-
-**Wrapper script**（`/usr/local/bin/x11vnc-wrapper.sh`）：
-
-wrapper 的設計解決了登入/登出時 display 編號和 Xauthority 路徑會變化的問題。它每 3 秒偵測 Xorg 進程的狀態，當偵測到 display 或 auth 變化時自動重啟 x11vnc。
-
-原始碼位於：`~/.config/nvim/script/x11vnc-wrapper.sh`
-
-**Service 檔案**（`/etc/systemd/system/x11vnc.service`）：
-
-```ini
-[Unit]
-Description=x11vnc VNC Server
-After=graphical-session.target gdm.service
-Wants=graphical-session.target
-
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/local/bin/x11vnc-wrapper.sh
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable x11vnc
-sudo systemctl start x11vnc
-```
+> **原始碼**：`~/.config/nvim/script/x11vnc-wrapper.sh`
+> Wrapper 每 3 秒偵測 active VT 上的 Xorg 狀態，自動追蹤 display 編號與 Xauthority 路徑變化，支援登入/登出/切換帳號不斷線。
 
 ---
 
-## Step 5：設定預設解析度 1080p（自動登入後套用）
+## Step 3：部署顯示設定
 
 ```bash
-mkdir -p ~/.config/autostart
-cat > ~/.config/autostart/set-resolution.desktop << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=Set Resolution
-Exec=/bin/bash -c "sleep 3 && xrandr --output DP-0 --mode 1920x1080"
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
+sudo bash ~/.config/nvim/script/setup-display.sh
 ```
+
+腳本會自動完成：備份並部署 `configs/xorg.conf`、部署 `display-mode.sh`、設定開機 autostart。
+
+重開機後自動套用。或立即套用（不需重開機）：
+
+```bash
+/usr/local/bin/display-mode.sh
+```
+
+> **為何需要此腳本**：Driver 預設選螢幕最高刷新率（可能 120Hz），被動式 DP→HDMI 轉接器最高只支援 60Hz，導致螢幕顯示 "No Signal"。此腳本強制設為 60Hz 解決此問題。
 
 ---
 
-## 完成後連線資訊
+## 腳本一覽
 
-| 工具 | 連線方式 |
-|------|----------|
-| VNC | `192.168.137.124:5900` |
-| AnyDesk | ID：`637260884` |
+| 腳本 | 用途 | 部署位置 |
+|------|------|----------|
+| `script/setup_x11vnc.sh` | 部署 VNC server | 執行一次即可 |
+| `script/setup-display.sh` | 部署顯示設定 + 60Hz 修正 | 執行一次即可 |
+| `script/x11vnc-wrapper.sh` | VNC 動態追蹤核心邏輯 | → `/usr/local/bin/` |
+| `script/display-mode.sh` | 強制 DP-0 @ 60Hz | → `/usr/local/bin/` |
+| `script/display-mode-autostart.sh` | 開機自動套用 60Hz | → `/usr/local/bin/` |
+| `configs/xorg.conf` | 系統 xorg 設定範本 | → `/etc/X11/xorg.conf` |
+
+---
+
+---
+
+# 硬體規格
+
+## 顯示輸出
+
+| 連接器 | 顯示輸出 | 說明 |
+|--------|----------|------|
+| **DisplayPort（全尺寸 DP）** | ✅ | 唯一顯示輸出，接 HDMI 螢幕需用 DP→HDMI 轉接器 |
+| USB-C | ❌ | 僅 USB 資料/電源，不支援 DP Alt Mode（NVIDIA 官方確認） |
+| DP-1 (DFP-1 TMDS) | ❌ | 內部介面，無實體連接器，不可使用 |
+
+## USB-C 支援功能
+
+| 功能 | 支援 |
+|------|------|
+| 滑鼠、鍵盤、隨身碟 | ✅ |
+| USB 相機（UVC/V4L2） | ✅ |
+| USB Hub | ✅ |
+| 顯示輸出（DP Alt Mode） | ❌ |
+| 電源輸入（USB PD） | ❌（只能用電源孔） |
+
+## 雙螢幕方案
+
+USB-C 無法輸出影像。唯一雙螢幕方法：購買 **DisplayPort MST Hub（主動式分流器）**，插入 DP 孔，可分接 2+ 台螢幕。
 
 ---
 
@@ -157,99 +165,71 @@ EOF
 
 # 問題排查記錄
 
-## 原始狀態說明（設定前的背景）
+## 原始狀態說明
 
-此台 Jetson 在進行遠端桌面設定之前，已存在以下狀況：
+此台 Jetson 在設定前已存在以下狀況：
 
-### 原始 AnyDesk 狀況
-- AnyDesk 8.0.1 已安裝並設為開機自啟動
-- **無人值守密碼遺忘**：使用者推測是當時密碼輸入錯誤導致登入失敗，並非系統問題
-- AnyDesk backend 跑在 `gdm` 使用者下（tty1 GDM 登入畫面），不是 nvidia 使用者的桌面 session，因此即使連線成功也只會看到登入畫面而非桌面
-- CLI 修改密碼嘗試失敗（詳見問題 5）
-
-### 原始無螢幕配置問題
-- 系統已預先設有 `/etc/X11/xorg.conf.d/10-dummy.conf`（dummy 虛擬顯示驅動），這是為了讓系統在**無實體螢幕時也能啟動 X11**
-- 然而此設定的副作用：**插上 HDMI 螢幕開機後，NVIDIA logo 出現幾秒後畫面即變黑**，因為 dummy driver 完全繞過實體顯示硬體
-- nvidia 使用者無圖形 session，只有 GDM greeter session 在運行
-
-### 原始 Wayland 停用原因推估
-- `/etc/gdm3/custom.conf` 中設有 `WaylandEnable=false`，強制 GDM 只啟動 X11 session
-- **推測原因**：AnyDesk Linux 版對 Wayland 的支援有限，特別是在 Jetson 這類 ARM 平台上。AnyDesk 在 Wayland 下無法直接存取畫面內容（Wayland 的安全模型不允許應用程式任意截取其他 session 的畫面），因此安裝 AnyDesk 時通常需要切換到 X11 才能正常運作
-- x11vnc 同樣依賴 X11 架構（透過 X11 protocol 截取畫面），在 Wayland 下無法使用
-- 因此 **X11 是這台機器上遠端桌面工具的必要前提**，Wayland 停用屬於正確且必要的設定
+- AnyDesk 8.0.1 已安裝但無人值守密碼遺忘（CLI 修改無效，詳見問題 5）
+- 系統有 `/etc/X11/xorg.conf.d/10-dummy.conf`（dummy 虛擬顯示驅動），讓 X11 在無螢幕時能啟動，但副作用是接上螢幕後畫面仍黑屏
+- Wayland 已停用（`WaylandEnable=false`），為 AnyDesk 需求
 
 ---
 
 ## 問題 1：有實體螢幕時畫面黑掉
 
-**原因**：系統原本設有 `/etc/X11/xorg.conf.d/10-dummy.conf`，強制使用 `dummy` 虛擬顯示驅動，讓 X11 在無螢幕時可以啟動。但副作用是即使插上 HDMI，實體螢幕也沒有任何輸出。
+**原因**：`10-dummy.conf` 強制使用 dummy 虛擬顯示驅動，即使插上螢幕也無任何輸出。
 
-**解法**：移除 dummy conf，改用 xorg.conf 的 `ConnectedMonitor` 選項讓 NVIDIA driver 自行管理虛擬輸出。
+**解法**：移除 dummy conf，改用 xorg.conf 的 `ConnectedMonitor` 選項。
 
 ---
 
 ## 問題 2：VNC 登入後立刻斷線
 
-**原因**：x11vnc 啟動時使用 GDM greeter 的 Xauthority（`/run/user/128/gdm/Xauthority`）。當使用者透過 VNC 在 GDM 畫面手動登入時，GDM 建立新 session 並更換 Xauthority，x11vnc 失去連線。
+**原因**：x11vnc 使用 GDM greeter 的 Xauthority，手動登入後 GDM 更換 Xauthority，x11vnc 失效。
 
-**解法**：
-1. 啟用 GDM 自動登入（`AutomaticLogin=nvidia`）
-2. x11vnc service 改為動態尋找 `/run/user/1000/` 下的 Xauthority，確保抓到 nvidia user 的 session
+**解法**：啟用 GDM 自動登入（`AutomaticLogin=nvidia`）+ 動態偵測 Xauthority。
 
 ---
 
-## 問題 3：重開機後 VNC 連線被拒絕（display :1）
+## 問題 3：重開機後 VNC 連線被拒絕
 
-**原因**：設定 x11vnc 時誤用 `-display :1`，但 GDM autologin 後 X session 實際在 `:0`（可由 `ls /tmp/.X11-unix/` 確認）。
+**原因**：寫死 `-display :1`，但 GDM autologin 後 X session 實際在 `:0`。
 
-**規則**：GDM autologin 會直接使用 `:0`，不會開新的 display。
-
-**解法**：改為 `-display :0`。
+**解法**：改為動態偵測 display 編號（x11vnc-wrapper.sh）。
 
 ---
 
-## 問題 4：無 HDMI 時 VNC 顯示 NVIDIA 開機 logo
+## 問題 4：無螢幕時 VNC 顯示開機 logo
 
-**原因**：移除 dummy conf 後，NVIDIA driver 在無 HDMI 時雖可啟動 X11（靠 `AllowEmptyInitialConfiguration=true`），但不會建立虛擬 framebuffer，x11vnc 捕捉到的是 kernel 留下的開機畫面。
+**原因**：無 HDMI 時 NVIDIA driver 不建立虛擬 framebuffer，x11vnc 捕捉到 kernel 留下的畫面。
 
-**解法**：在 xorg.conf Device section 加入：
-```
-Option "ConnectedMonitor" "DP-0"
-Option "ModeValidation" "AllowNonEdidModes, NoEdidMaxPClkCheck, NoMaxPClkCheck"
-```
-強制 NVIDIA driver 以為 DP-0 永遠有接螢幕，確保虛擬 framebuffer 存在。
+**解法**：在 xorg.conf 加入 `ConnectedMonitor "DP-0"` 強制建立虛擬 framebuffer。
 
 ---
 
 ## 問題 5：AnyDesk 無人值守密碼無法用 CLI 修改
 
-**原因**：AnyDesk v8.0.1 Linux 版的 `anydesk --set-password` 指令會回傳 exit code 51，密碼 hash 未實際寫入 `/etc/anydesk/system.conf`（需 root 寫入）。
+**原因**：`anydesk --set-password` 在 v8.0.1 Linux 回傳 exit code 51，密碼未實際寫入。
 
-**解法**：透過 VNC 連進桌面，從 AnyDesk GUI 介面手動設定無人值守密碼。
-
-**注意**：密碼 hash 位於 `system.conf` 的 `ad.security.pwd`、`ad.security.permission_profiles._unattended_access.pwd` 及對應 salt 三個欄位，且使用 SHA-256 加鹽。
+**解法**：透過 VNC 連進桌面，從 AnyDesk GUI 手動設定。
 
 ---
 
-## 問題 6：登出或切換帳號後 VNC 斷線（2026-03-31 suser 帳號修復）
+## 問題 6：登出或切換帳號後 VNC 斷線
 
-**原因**：舊的 x11vnc service 有三個問題導致登出/切換帳號後 VNC 永久失效：
+**原因**：Xauthority 路徑寫死、`-auth guess` 無效、display 編號會變（`:0` → `:1`）。
 
-1. **Xauthority 路徑寫死**：使用 `-auth /run/user/1000/gdm/Xauthority`，登出後該檔案被刪除
-2. **`-auth guess` 無效**：GDM greeter 的 Xauthority 在 `/run/user/128/gdm/Xauthority`（UID 128 = gdm），`-auth guess` 找不到
-3. **Display 編號會變**：GDM autologin 用 `:0`，但手動登入其他帳號後可能變成 `:1`。ExecStartPre 寫死等待 `/tmp/.X11-unix/X0` 導致啟動失敗
+**解法**：x11vnc-wrapper.sh 每 3 秒偵測 active VT 上的 Xorg 狀態，自動重啟 x11vnc。
 
-**解法**：改用 wrapper script（`/usr/local/bin/x11vnc-wrapper.sh`），每 3 秒偵測 active VT 上的 Xorg 狀態：
-- 讀取 `/sys/class/tty/tty0/active` 取得當前 active VT 編號
-- 用 `pgrep -x Xorg` 找到 Xorg 進程，從 `/proc/$pid/cmdline` 的 `vt` 參數比對 VT、`-auth` 參數取得 Xauthority 路徑
-- 用 `ss -xlp` 配對該 PID 擁有的 X11 unix socket 取得 display 編號
-- 偵測到變化時自動 kill 舊的 x11vnc 並用新參數重啟
-- VNC client 端短暫斷線後重連即可
+---
 
-**相關檔案**：
-- wrapper 原始碼：`~/.config/nvim/script/x11vnc-wrapper.sh`
-- 部署腳本：`~/.config/nvim/script/setup_x11vnc.sh`
-- 安裝位置：`/usr/local/bin/x11vnc-wrapper.sh`
+## 問題 7：實體螢幕無畫面（No Signal）
+
+**原因**：Driver 自動選螢幕最高刷新率（119.88Hz），被動式 DP→HDMI 轉接器只支援 60Hz。
+
+**解法**：`/usr/local/bin/display-mode.sh` 強制 DP-0 @ 60Hz，由 autostart 在每次登入後自動套用。
+
+> **注意**：`ConnectedMonitor` 只能寫 `"DP-0"`，不可加 DP-1。加入後 NVIDIA driver 嘗試建立雙輸出 MetaMode，`Configure crtc 1 failed` → Xorg 崩潰，VNC/AnyDesk 全斷。
 
 ---
 
@@ -278,94 +258,155 @@ Option "ModeValidation" "AllowNonEdidModes, NoEdidMaxPClkCheck, NoMaxPClkCheck"
                 ▼                         ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    顯示協定層                                 │
-│                                                             │
 │   ✅ X11（X Window System）          ✗ Wayland（已停用）    │
-│   採用 Client-Server 架構            採用 Compositor 架構   │
-│   應用程式透過 X protocol 溝通        合成器直接與 kernel 溝通│
-│   畫面可被第三方工具截取              安全隔離，禁止跨程式截圖 │
+│   應用程式透過 X protocol 溝通        安全隔離，禁止跨程式截圖 │
 │   Xauthority cookie 認證             無 Xauthority 機制     │
 └───────────────────────────┬─────────────────────────────────┘
                             │（X11 路徑）
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  X Server 層（Xorg）                         │
-│   /usr/lib/xorg/Xorg                                        │
 │   - 管理 display :0 或 :1（視登入狀態而定）                  │
 │   - 維護 Xauthority（MIT-MAGIC-COOKIE 認證）                 │
-│   - 負責畫面輸出、鍵盤滑鼠輸入事件                           │
 └───────────────────────────┬─────────────────────────────────┘
-                            │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  顯示管理器層（GDM）                          │
-│   gdm3                                                      │
-│   - 管理登入畫面（greeter session）                          │
-│   - 啟動並管理 X server                                      │
-│   - 處理 session 切換（greeter → 使用者桌面）                │
+│   - 啟動 Xorg、管理 session 切換                             │
 │   - 設定檔：/etc/gdm3/custom.conf                           │
-│   - GDM 本身可支援 X11 或 Wayland，本機強制 X11             │
 └───────────────────────────┬─────────────────────────────────┘
-                            │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  顯示驅動層                                   │
-│   NVIDIA Tegra driver（nvidia）                              │
-│   - 管理實體 GPU 與顯示輸出（DP-0, DP-1）                   │
-│   - 設定檔：/etc/X11/xorg.conf                              │
+│                  顯示驅動層（NVIDIA Tegra）                   │
 │   - ConnectedMonitor：強制建立虛擬輸出（headless 用）        │
 │   - AllowEmptyInitialConfiguration：無螢幕仍可啟動 Xorg     │
+│   - 設定檔：/etc/X11/xorg.conf                              │
 └───────────────────────────┬─────────────────────────────────┘
-                            │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Kernel / 硬體層                              │
 │   tegra DRM kernel module                                   │
-│   實體顯示輸出：HDMI/DP → 實體螢幕                           │
+│   實體顯示輸出：DisplayPort → 實體螢幕（via DP→HDMI 轉接）  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 各工具的角色與依賴
+## 各工具角色
 
 | 工具 | 角色 | 依賴 |
 |------|------|------|
 | **GDM** | 顯示管理器，啟動 Xorg、管理 session | systemd |
-| **Xorg** | X server，提供 display :0 或 :1 | NVIDIA driver、GDM |
-| **Xauthority** | MIT-MAGIC-COOKIE 認證檔，控制誰可以連接 X server | Xorg session |
-| **x11vnc** | 截取 X11 framebuffer 透過 VNC 協定傳出 | Xorg（需要正確 Xauthority）|
-| **x11vnc-wrapper** | 監控 active VT 的 Xorg 狀態，自動重啟 x11vnc 以追蹤 auth/display 變化 | /sys/class/tty、pgrep、ss、x11vnc |
+| **Xorg** | X server，提供 display | NVIDIA driver、GDM |
+| **x11vnc** | 截取 X11 framebuffer 透過 VNC 協定傳出 | Xorg + 正確 Xauthority |
+| **x11vnc-wrapper** | 監控 active VT 的 Xorg，自動重啟 x11vnc | /sys/class/tty、pgrep、ss |
 | **AnyDesk** | 截取 X11 畫面透過自有協定傳出 | X11（Wayland 不支援）|
-| **NVIDIA Tegra driver** | 驅動 GPU，管理實體顯示輸出 | kernel DRM module |
+| **display-mode.sh** | 強制 DP-0 @ 60Hz，修正轉接器相容問題 | Xorg + xrandr |
 
-## Xauthority 的重要性
+## Xauthority 路徑
 
-Xauthority 是 X11 的認證機制，x11vnc 必須持有正確的 cookie 才能連接 X server：
+| Session 類型 | 路徑 |
+|-------------|------|
+| GDM greeter | `/run/user/128/gdm/Xauthority` |
+| nvidia user session | `/run/user/1000/gdm/Xauthority` |
+| suser session | `/run/user/1001/gdm/Xauthority` |
 
-- **GDM greeter session**：Xauthority 在 `/run/user/128/gdm/Xauthority`（uid 128 = gdm）
-- **nvidia 使用者 session**：Xauthority 在 `/run/user/1000/gdm/Xauthority`（uid 1000 = nvidia）
-- session 切換時 Xauthority 會更換 → x11vnc-wrapper 會自動偵測並重啟 x11vnc
+Session 切換時 Xauthority 會變更 → x11vnc-wrapper 自動偵測並重啟 x11vnc。
 
-## X11 與 Wayland 的異同
+## 為何選用 X11 而非 Wayland
 
-### 共同點
-- 兩者都是 Linux 桌面環境的**顯示協定**，負責管理視窗、畫面輸出與輸入事件
-- 都需要搭配 GDM 等顯示管理器啟動
-- 上層的桌面環境（GNOME、KDE 等）在兩者之上都可以運行
+x11vnc 與 AnyDesk 均依賴 X11 截圖能力，Wayland 的安全隔離設計阻止了跨程式畫面截取。Jetson ARM 平台上 AnyDesk 的 Wayland 支援尤其不穩定，因此強制使用 X11（`WaylandEnable=false`）是必要設定。
 
-### 主要差異
+---
 
-| 面向 | X11 | Wayland |
-|------|-----|---------|
-| **架構** | Client-Server：應用程式透過 X protocol 向 X server 請求顯示 | Compositor 架構：合成器直接與 kernel DRM/KMS 溝通，無獨立 server |
-| **安全性** | 較低：任何程式只要有 Xauthority cookie 就能截取整個螢幕畫面 | 較高：每個 app 只能看到自己的畫面，無法跨程式截圖 |
-| **效能** | 較舊，繪圖路徑較長，有額外的 protocol 轉換開銷 | 較新，路徑更短，理論上延遲更低 |
-| **遠端桌面工具** | x11vnc、AnyDesk 等工具可直接截取畫面 | 需要 wayvnc、pipewire screencast 等專屬支援 |
-| **Xauthority** | 有，用 MIT-MAGIC-COOKIE 控制存取 | 無此機制，改由 compositor 控制 |
-| **成熟度** | 數十年歷史，相容性最廣 | 較新，部分工具支援仍不完整（如 ARM 平台）|
+---
 
-### 本機選用 X11 的原因
-Wayland 的高安全性設計反而成為遠端桌面的障礙：
-- **x11vnc** 完全依賴 X11 截圖能力，在 Wayland 下無法運作
-- **AnyDesk** 在 Linux Wayland 上支援有限，Jetson ARM 平台尤其不穩定
-- 因此停用 Wayland（`WaylandEnable=false`）是讓遠端桌面工具正常運作的必要條件
+# AnyDesk 安裝說明（ARM64 / Jetson）
 
-> 若未來需要切換回 Wayland，遠端桌面工具需全部換成支援 Wayland 的替代方案（如 wayvnc + pipewire）。
+## 前置條件：必須先關閉 Wayland
+
+AnyDesk 在 Linux Wayland session 下無法截取畫面（Wayland 安全隔離機制所限）。
+ARM 平台尤其不穩定，**安裝前務必確認 Wayland 已停用**：
+
+```bash
+grep -E "WaylandEnable|AutomaticLogin" /etc/gdm3/custom.conf
+```
+
+應顯示：
+```
+WaylandEnable=false
+AutomaticLoginEnable=true
+AutomaticLogin=nvidia
+```
+
+若尚未設定，先執行 Step 1（關閉 Wayland）再繼續。
+
+---
+
+## 安裝步驟
+
+### 1. 下載 ARM64 版本
+
+AnyDesk 官方提供 ARM64 的 `.deb` 套件，需從官網手動下載（apt repo 目前僅支援 x86_64）：
+
+```bash
+# 前往官網下載頁面取得最新 ARM64 .deb 連結
+# https://anydesk.com/en/downloads/linux
+# 選擇 DEB - ARM 64-bit
+
+# 範例（版本號請以官網為準）：
+wget https://download.anydesk.com/linux/anydesk_8.0.1-1_arm64.deb
+sudo dpkg -i anydesk_8.0.1-1_arm64.deb
+
+# 修復相依性（若有）：
+sudo apt-get install -f
+```
+
+> 本機目前版本：`8.0.1 arm64`
+
+### 2. 確認服務狀態
+
+```bash
+sudo systemctl enable anydesk
+sudo systemctl start anydesk
+sudo systemctl status anydesk --no-pager
+```
+
+### 3. 取得 AnyDesk ID
+
+```bash
+anydesk --get-id
+# 或從 AnyDesk GUI 主畫面查看
+```
+
+> 本機 AnyDesk ID：`637260884`
+
+---
+
+## 設定無人值守密碼（必須用 GUI）
+
+> ⚠️ **CLI 方式無效**：`anydesk --set-password` 在 v8 Linux 回傳 exit code 51，密碼不會實際寫入。
+
+唯一有效方式：
+1. 透過 VNC 或實體螢幕進入桌面
+2. 開啟 AnyDesk 應用程式
+3. 進入 **設定 → 安全性 → 無人值守存取**
+4. 設定密碼並儲存
+
+---
+
+## 確認可連線
+
+從另一台電腦的 AnyDesk 輸入本機 ID（`637260884`），使用無人值守密碼連線。
+
+連線成功後應看到 GNOME 桌面畫面（nvidia user session）。
+若看到的是 GDM 登入畫面，代表 autologin 未正確設定（確認 Step 1）。
+
+---
+
+## 常見問題
+
+| 症狀 | 原因 | 解法 |
+|------|------|------|
+| 連線後看到登入畫面而非桌面 | AnyDesk 連到 GDM greeter session | 確認 `AutomaticLogin=nvidia` 已設定並重開機 |
+| 連線後畫面全黑 | Wayland session 啟動 | 確認 `WaylandEnable=false` 並重開機 |
+| 無人值守密碼設定失敗 | CLI `--set-password` 在 v8 無效 | 改用 GUI 設定 |
+| ARM64 套件找不到 | apt repo 僅有 x86_64 | 從官網手動下載 `.deb` |
