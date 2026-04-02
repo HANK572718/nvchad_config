@@ -8,7 +8,17 @@
 set -euo pipefail
 
 GITHUB_USER="HANK572718"
-NVCHAD_REPO="git@github.com:${GITHUB_USER}/nvchad_config.git"
+GITHUB_REPO="git@github.com:${GITHUB_USER}/nvchad_config.git"
+
+# ── 自架 GitLab：請替換為你的實際主機與使用者名稱 ──────────────
+GITLAB_HOST="your-gitlab.example.com"   # 例如 gitlab.mycompany.com
+GITLAB_USER="your-username"
+GITLAB_REPO="git@${GITLAB_HOST}:${GITLAB_USER}/nvchad_config.git"
+
+# NVCHAD_REPO 由 Step 5a 的互動選單決定（預設 GitHub）
+NVCHAD_REPO="$GITHUB_REPO"
+SKIP_NVIM_CONFIG=0
+
 GIT_NAME="deploy-bot"
 GIT_EMAIL="deploy-bot@noreply.local"
 SSH_KEY="$HOME/.ssh/id_ed25519"
@@ -169,9 +179,53 @@ for i in $(seq 1 $MAX_RETRY); do
 done
 
 # ─────────────────────────────────────────────────────────────
+# 步驟 5a：選擇 NvChad 設定來源
+# ─────────────────────────────────────────────────────────────
+step "步驟 5a/8：選擇設定來源"
+
+echo ""
+echo -e "請選擇要從哪裡拉取 NvChad 個人設定："
+echo -e "  ${CYAN}[1]${RESET} GitHub  (${GITHUB_REPO})"
+echo -e "  ${CYAN}[2]${RESET} GitLab  (${GITLAB_REPO})"
+echo -e "  ${CYAN}[3]${RESET} 跳過    （只安裝 Neovim，不拉取個人設定）"
+echo ""
+
+while true; do
+  read -rp "請輸入 1 / 2 / 3：" REPO_CHOICE
+  case "$REPO_CHOICE" in
+    1)
+      NVCHAD_REPO="$GITHUB_REPO"
+      info "已選擇 GitHub：$NVCHAD_REPO"
+      break
+      ;;
+    2)
+      if [[ "$GITLAB_HOST" == "your-gitlab.example.com" ]]; then
+        warn "尚未設定 GITLAB_HOST / GITLAB_USER，請先編輯腳本頂部的對應變數後重新執行"
+        exit 1
+      fi
+      NVCHAD_REPO="$GITLAB_REPO"
+      info "已選擇 GitLab：$NVCHAD_REPO"
+      break
+      ;;
+    3)
+      SKIP_NVIM_CONFIG=1
+      info "跳過 nvim 設定，只安裝 Neovim 本體"
+      break
+      ;;
+    *)
+      warn "請輸入 1、2 或 3"
+      ;;
+  esac
+done
+
+# ─────────────────────────────────────────────────────────────
 # 步驟 5：Clone NvChad 設定（直接 clone 到 ~/.config/nvim）
 # ─────────────────────────────────────────────────────────────
 step "步驟 5/8：Clone NvChad 設定"
+
+if [[ "$SKIP_NVIM_CONFIG" == "1" ]]; then
+  info "（已跳過）不拉取 nvim 個人設定"
+else
 
 NVIM_CONFIG="$HOME/.config/nvim"
 
@@ -198,6 +252,8 @@ if [[ ! -d "$NVIM_CONFIG" ]]; then
   success "Clone 完成，已在 $NVIM_CONFIG"
 fi
 
+fi  # end SKIP_NVIM_CONFIG
+
 # ─────────────────────────────────────────────────────────────
 # 步驟 6：設定 Git global identity
 # ─────────────────────────────────────────────────────────────
@@ -208,8 +264,10 @@ git config --global user.email "$GIT_EMAIL"
 git config --global init.defaultBranch main
 success "git user: $GIT_NAME <$GIT_EMAIL>"
 
-cd "$NVIM_CONFIG"
-success "工作目錄：$NVIM_CONFIG（remote: $(git remote get-url origin)）"
+if [[ "$SKIP_NVIM_CONFIG" != "1" ]]; then
+  cd "$NVIM_CONFIG"
+  success "工作目錄：$NVIM_CONFIG（remote: $(git remote get-url origin)）"
+fi
 
 # ─────────────────────────────────────────────────────────────
 # 步驟 7：安裝 yarn
@@ -229,9 +287,13 @@ fi
 # ─────────────────────────────────────────────────────────────
 step "步驟 8/8：安裝 Neovim Plugins（Lazy.nvim）"
 
-info "以 headless 模式啟動 nvim，同步所有 plugins（可能需要 2-5 分鐘）..."
-nvim --headless "+Lazy! sync" +qa 2>&1 || warn "Lazy sync 結束（部分 plugin 可能需要在 nvim 內手動完成）"
-success "Plugin 同步完成"
+if [[ "$SKIP_NVIM_CONFIG" == "1" ]]; then
+  info "（已跳過）未拉取個人設定，略過 Lazy sync"
+else
+  info "以 headless 模式啟動 nvim，同步所有 plugins（可能需要 2-5 分鐘）..."
+  nvim --headless "+Lazy! sync" +qa 2>&1 || warn "Lazy sync 結束（部分 plugin 可能需要在 nvim 內手動完成）"
+  success "Plugin 同步完成"
+fi
 
 # ─────────────────────────────────────────────────────────────
 # 完成
