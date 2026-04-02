@@ -27,6 +27,20 @@ sudo bash ~/.config/nvim/script/setup-display.sh
 
 部署完成後重開機，VNC port 5900 即可連線，實體螢幕亦會正常顯示。
 
+### 讓所有本機用戶可執行 GUI 程式（Qt / X11）
+
+```bash
+# 一次性：允許所有本機用戶存取 X display
+echo 'DISPLAY=:0' | sudo tee -a /etc/environment
+```
+
+setup-display.sh 部署後，開機 autostart 會自動執行 `xhost +local:`，
+無需額外設定。若在此之前需要手動套用：
+
+```bash
+DISPLAY=:0 XAUTHORITY=/run/user/1000/gdm/Xauthority xhost +local:
+```
+
 ### AnyDesk（選用，ARM64 需手動安裝）
 
 ```bash
