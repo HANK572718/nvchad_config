@@ -131,19 +131,29 @@ git pull gitlab main   # 從 GitLab 拉
 bash setup-nvchad.sh
 ```
 
+腳本支援兩種安裝情境，自動偵測並提示推薦選項：
+
+**情境 A — USB / 本機已有設定**（腳本與設定在同一目錄，或 `~/.config/nvim` 已存在）
+→ 步驟 3（SSH 設定）自動略過，直接進入複製與後續步驟
+
+**情境 B — 遠端 clone**（全新機器，無任何本機設定）
+→ 完整執行 SSH 金鑰產生、平台連線確認、clone
+
 腳本流程（共 8 步驟）：
 
-1. 安裝系統依賴（git、ripgrep、nodejs、yarn、Neovim 0.11+）
-2. 產生 SSH Key（若尚未存在）
-3. 顯示公鑰，等待使用者加入 GitHub / GitLab
-4. 確認 SSH 連線
-5. **選擇設定來源**（互動選單）
-   - `[1]` 從 **GitHub** clone
-   - `[2]` 從 **GitLab（自架）** clone
-   - `[3]` **跳過**，只安裝 Neovim 本體
-6. 設定 git global identity
-7. 安裝 yarn
-8. Headless 啟動 nvim，同步所有 plugins（Lazy sync）
+1. 安裝系統依賴（git、ripgrep、nodejs、Neovim 0.11+）
+2. **選擇設定來源**（自動偵測並推薦）
+   - `[1]` 使用本機設定（USB / 已複製到本機）
+   - `[2]` 從 **GitHub** clone
+   - `[3]` 從 **GitLab（自架）** clone
+   - `[4]` 跳過，只安裝 Neovim 本體
+3. SSH Key 產生 + 平台連線確認（僅選 2 / 3 時執行）
+4. 複製或 clone 設定到 `~/.config/nvim`
+5. Git 身份設定 + 雙遠端設定（互動提示）
+6. 安裝 yarn
+7. Headless Lazy sync（安裝所有 plugins）
+8. **系統管理腳本選單**（可選，多選或跳過）
+   - 帳號管理、網路管理、權限管理、系統報告、VNC、顯示設定
 
 > 若選擇 GitLab，請先在腳本頂部填入 `GITLAB_HOST` 和 `GITLAB_USER` 變數。
 
