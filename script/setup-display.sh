@@ -6,6 +6,7 @@
 #   - script/display-mode.sh → /usr/local/bin/display-mode.sh
 #   - script/display-mode-autostart.sh → /usr/local/bin/display-mode-autostart.sh
 #   - ~/.config/autostart/set-resolution.desktop（取代舊的）
+#   - /etc/environment 加入 DISPLAY=:0（全域，讓所有用戶可執行 GUI 程式）
 #
 # 使用方式：
 #   sudo bash ~/.config/nvim/script/setup-display.sh
@@ -23,7 +24,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 AUTOSTART_USER="${SUDO_USER:-${USER}}"
 AUTOSTART_HOME=$(getent passwd "$AUTOSTART_USER" | cut -d: -f6)
 
-echo "[1/4] 備份現有 xorg.conf..."
+echo "[1/5] 備份現有 xorg.conf..."
 if [ -f /etc/X11/xorg.conf ]; then
     BACKUP="/etc/X11/xorg.conf.bak.$(date +%Y%m%d_%H%M%S)"
     sudo cp /etc/X11/xorg.conf "$BACKUP"
@@ -32,11 +33,11 @@ else
     echo "  /etc/X11/xorg.conf 不存在，跳過備份"
 fi
 
-echo "[2/4] 部署 xorg.conf..."
+echo "[2/5] 部署 xorg.conf..."
 sudo cp "$PROJECT_DIR/configs/xorg.conf" /etc/X11/xorg.conf
 echo "  已部署 /etc/X11/xorg.conf"
 
-echo "[3/4] 部署 display-mode 腳本..."
+echo "[3/5] 部署 display-mode 腳本..."
 sudo cp "$SCRIPT_DIR/display-mode.sh" /usr/local/bin/display-mode.sh
 sudo chmod +x /usr/local/bin/display-mode.sh
 sudo cp "$SCRIPT_DIR/display-mode-autostart.sh" /usr/local/bin/display-mode-autostart.sh
@@ -44,7 +45,15 @@ sudo chmod +x /usr/local/bin/display-mode-autostart.sh
 echo "  已部署 /usr/local/bin/display-mode.sh"
 echo "  已部署 /usr/local/bin/display-mode-autostart.sh"
 
-echo "[4/4] 設定 autostart..."
+echo "[4/5] 設定全域 DISPLAY 環境變數..."
+if grep -q "^DISPLAY=" /etc/environment 2>/dev/null; then
+    echo "  DISPLAY 已存在，跳過"
+else
+    echo "DISPLAY=:0" >> /etc/environment
+    echo "  已加入 DISPLAY=:0 至 /etc/environment"
+fi
+
+echo "[5/5] 設定 autostart..."
 AUTOSTART_DIR="$AUTOSTART_HOME/.config/autostart"
 mkdir -p "$AUTOSTART_DIR"
 cat > "$AUTOSTART_DIR/set-resolution.desktop" <<'EOF'
@@ -76,4 +85,5 @@ echo " 說明："
 echo "   - 只有 DisplayPort 孔可輸出影像（USB-C 不支援顯示）"
 echo "   - 接 HDMI 螢幕請用 DP→HDMI 轉接器"
 echo "   - 每次開機後自動套用 1920x1080@60Hz"
+echo "   - 所有本機用戶可執行 GUI/Qt 程式（xhost +local: 已設定）"
 echo "=============================="
