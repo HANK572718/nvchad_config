@@ -2,6 +2,14 @@
 
 以 [NvChad v2.5](https://github.com/NvChad/NvChad) 為基礎的深度客製化設定，**同時支援 Linux 與 Windows**，目標是讓任何人在任意平台上 clone 完就能直接開發。
 
+本 repo 圍繞兩個核心主軸：
+
+**① 終端機內的 IDE**
+Neovim 作為主力編輯器，在純終端機環境中提供完整的現代開發體驗——語法高亮、自動補全、LSP 跳轉、DAP 除錯、Git 整合、模糊搜尋——不依賴任何 GUI 介面，SSH 遠端也能全功能使用。設定刻意兼容 Linux 與 Windows 雙平台。
+
+**② 終端機管理 Linux**
+一套針對 Linux 伺服器與嵌入式設備（Jetson、Raspberry Pi）的 shell 腳本集合，涵蓋帳號與權限管理、網路設定、遠端桌面部署、系統報告等日常維運工作，目標是讓你不需要 GUI 就能完全掌控一台 Linux 機器。
+
 ---
 
 ## 快速開始
