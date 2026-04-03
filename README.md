@@ -26,6 +26,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/HANK572718/nvchad_config/mai
 4. Clone 此 repo，將資料夾內容複製到 `%LOCALAPPDATA%\nvim\`
 5. 開啟 `nvim`，等待插件自動安裝完成
 
+> **遇到 PATH 衝突或套件問題？** 考慮改用 [MSYS2](https://www.msys2.org/) 統一管理工具鏈，詳見 [docs/MSYS2_SETUP_GUIDE.md](docs/MSYS2_SETUP_GUIDE.md)。
+
 詳細步驟見 [docs/setup_nvchad.md](docs/setup_nvchad.md)。
 
 ---

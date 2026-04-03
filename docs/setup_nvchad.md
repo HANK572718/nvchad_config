@@ -132,6 +132,31 @@ winget install BurntSushi.ripgrep.MSVC
 
 或至 [ripgrep Releases](https://github.com/BurntSushi/ripgrep/releases) 下載 `ripgrep-x86_64-pc-windows-msvc.zip`，解壓後將 `rg.exe` 加入 PATH。
 
+---
+
+### 遇到安裝問題？考慮使用 MSYS2
+
+若上述步驟中遇到 PATH 衝突、套件版本不相容、或 `winget` 無法使用等問題，建議改用 **MSYS2** 統一管理 Windows 上的開發工具。
+
+MSYS2 提供類 Unix 的 `pacman` 套件管理器，可一次安裝並管理 Neovim、ripgrep、Node.js、fd 等工具，避免手動處理 PATH 問題。
+
+**快速安裝：**
+
+1. 至 [msys2.org](https://www.msys2.org/) 下載安裝程式，執行後開啟 **UCRT64** 終端
+2. 安裝開發工具：
+   ```bash
+   pacman -S mingw-w64-ucrt-x86_64-neovim \
+             mingw-w64-ucrt-x86_64-ripgrep \
+             mingw-w64-ucrt-x86_64-nodejs \
+             git
+   npm install -g yarn
+   ```
+3. 後續步驟（Clone repo、複製設定目錄）與上方相同
+
+> 詳細環境配置與 Telescope 加速設定見 [MSYS2_SETUP_GUIDE.md](MSYS2_SETUP_GUIDE.md)。
+
+---
+
 ### 4. 取得此 repo
 
 ```powershell
