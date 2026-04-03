@@ -52,13 +52,6 @@ sudo systemctl enable --now anydesk
 
 > 無人值守密碼**只能透過 GUI 設定**（CLI `--set-password` 在 v8 無效）。詳見文末 AnyDesk 章節。
 
-### 連線資訊
-
-| 工具 | 位址 |
-|------|------|
-| VNC | `192.168.137.124:5900` |
-| AnyDesk | ID：`637260884` |
-
 ### 硬體注意事項
 
 | 連接器 | 顯示輸出 |
@@ -78,8 +71,6 @@ sudo systemctl enable --now anydesk
 
 - 裝置：NVIDIA Jetson Orin Nano (aarch64)，Ubuntu 22.04.5 LTS
 - 主機名稱：yuan-6n0cnx
-- IP：192.168.137.124 / 192.168.55.1
-- 使用者：nvidia（UID 1000）、suser（UID 1001）
 - VNC 密碼：存放於 `/etc/x11vnc/passwd`
 - AnyDesk 密碼：存放於 `/etc/anydesk/system.conf`（勿明文記錄）
 

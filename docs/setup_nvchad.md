@@ -1,176 +1,327 @@
-# NvChad 安裝與設定指南
+# NvChad 設定部署指南
 
-本文件說明如何在全新 Linux 機器上安裝 Neovim、拉取個人 NvChad 設定，以及長期維護 GitHub + GitLab 雙遠端的工作流程。
+本設定以 [NvChad](https://github.com/NvChad/NvChad) 為基礎客製化，支援 **Linux（x86 / ARM）** 與 **Windows（MSYS2）** 兩種平台。
+Clone 此 repo 後依照本文件操作，幾分鐘內即可完成開發環境部署。
+
+---
+
+## 選擇部署方式
+
+| 情境 | 建議路線 |
+|------|----------|
+| Linux，想一條命令搞定 | [一鍵腳本](#一鍵腳本linux) |
+| Linux，自行 clone 後手動部署 | [Linux 手動部署](#linux-手動部署) |
+| Windows，手動安裝工具後套用設定 | [Windows 手動部署](#windows-手動部署) |
 
 ---
 
 ## 前置要求
 
-| 工具 | 最低版本 | 說明 |
+| 工具 | 最低版本 | 用途 |
 |------|----------|------|
-| Neovim | 0.11+ | 使用原生 `vim.lsp.config` API |
-| git | 任意 | clone 與遠端管理 |
-| ripgrep | 任意 | Telescope 搜尋後端 |
-| Node.js | 16+ | markdown-preview、Copilot 等插件依賴 |
+| Neovim | **0.11+** | 使用原生 LSP API，版本不可低於此 |
+| git | 任意 | clone 此 repo |
+| ripgrep | 任意 | Telescope 檔案搜尋後端 |
+| Node.js | 16+ | markdown-preview 等插件依賴 |
 | yarn | 任意 | markdown-preview 建置依賴 |
 
-`setup-nvchad.sh` 會自動安裝以上所有工具，可直接跳到 [一鍵安裝](#一鍵安裝腳本) 章節。
-
 ---
 
-## SSH Key 設定
+## Linux 手動部署
+
+適合：已自行 clone 此 repo，或想完全掌控每個步驟的使用者。
+
+### 1. 安裝系統依賴
 
 ```bash
-# 產生 ed25519 金鑰（若尚未有）
-ssh-keygen -t ed25519 -C "your-email@example.com" -f ~/.ssh/id_ed25519 -N ""
+# Debian / Ubuntu / Raspberry Pi OS / Jetson
+sudo apt-get update
+sudo apt-get install -y git curl ripgrep build-essential nodejs npm
 
-# 啟動 ssh-agent 並加入金鑰
-eval "$(ssh-agent -s)"
-ssh-add ~/.ssh/id_ed25519
-
-# 顯示公鑰（複製後加入平台）
-cat ~/.ssh/id_ed25519.pub
+# 安裝 yarn
+sudo npm install -g yarn
 ```
 
-將公鑰加入對應平台：
+### 2. 安裝 Neovim 0.11+
 
-- **GitHub**：Settings → SSH and GPG keys → New SSH key
-  `https://github.com/settings/ssh/new`
-- **GitLab（自架）**：登入後 → User Settings → SSH Keys
-  `https://<GITLAB_HOST>/-/profile/keys`
-
-確認連線：
+發行版的 apt 通常版本過舊，建議從 GitHub Releases 直接安裝：
 
 ```bash
-ssh -T git@github.com       # 應出現 "successfully authenticated"
-ssh -T git@<GITLAB_HOST>    # 應出現 "Welcome to GitLab, @<user>!"
+# 偵測架構後下載對應版本
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64)  TARBALL="nvim-linux-x86_64.tar.gz" ;;
+  aarch64) TARBALL="nvim-linux-arm64.tar.gz" ;;
+esac
+
+VER=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest \
+  | grep '"tag_name"' | grep -oP 'v[\d.]+')
+
+curl -L "https://github.com/neovim/neovim/releases/download/${VER}/${TARBALL}" -o /tmp/nvim.tar.gz
+tar xzf /tmp/nvim.tar.gz -C /tmp
+sudo install -Dm755 /tmp/${TARBALL%.tar.gz}/bin/nvim /usr/local/bin/nvim
+
+nvim --version   # 確認顯示 0.11+
 ```
 
----
-
-## 克隆設定
-
-### 方案一：從 GitHub clone
+### 3. 將此 repo 放到 Neovim 設定目錄
 
 ```bash
-git clone git@github.com:HANK572718/nvchad_config.git ~/.config/nvim
-cd ~/.config/nvim
+# 方法 A：直接 clone 到目標位置
+git clone https://github.com/HANK572718/nvchad_config.git ~/.config/nvim
+
+# 方法 B：若已 clone 在其他目錄，複製過去
+cp -a /path/to/nvchad_config/. ~/.config/nvim/
+
+# 方法 C：若從 USB 執行，在 repo 根目錄下
+cp -a . ~/.config/nvim/
 ```
 
-### 方案二：從自架 GitLab clone
+> 若 `~/.config/nvim` 已存在，先備份再放入：
+> ```bash
+> mv ~/.config/nvim ~/.config/nvim.bak
+> ```
 
-> 請將 `<GITLAB_HOST>` 和 `<GITLAB_USER>` 替換為你的實際值。
+### 4. 開啟 Neovim，等待自動安裝
 
 ```bash
-git clone git@<GITLAB_HOST>:<GITLAB_USER>/nvchad_config.git ~/.config/nvim
-cd ~/.config/nvim
+nvim
 ```
 
-### 方案三：跳過 nvim 設定
+首次開啟時 lazy.nvim 會自動下載並安裝所有插件，**等待安裝完成後重啟 nvim 即可**。
 
-若只想安裝 Neovim 本體而不拉取個人設定（例如在臨時機器上），可直接跳過 clone 步驟，或在腳本中選擇「跳過」選項（見下方說明）。
-
----
-
-## 雙遠端長期維護（GitHub + GitLab）
-
-兩個平台各作為獨立的 remote，分別 push 以保持同步。
-
-### 初次設定
+若想以 headless 模式預先安裝（不開 UI）：
 
 ```bash
-cd ~/.config/nvim
-
-# 確認目前的 origin（預設為 clone 來源）
-git remote -v
-
-# 若 origin 是 GitHub，新增 GitLab 作為第二個 remote
-git remote add gitlab git@<GITLAB_HOST>:<GITLAB_USER>/nvchad_config.git
-
-# 若 origin 是 GitLab，新增 GitHub 作為第二個 remote
-git remote add github git@github.com:HANK572718/nvchad_config.git
-```
-
-確認後應看到類似：
-
-```
-origin  git@github.com:HANK572718/nvchad_config.git (fetch)
-origin  git@github.com:HANK572718/nvchad_config.git (push)
-gitlab  git@<GITLAB_HOST>:<GITLAB_USER>/nvchad_config.git (fetch)
-gitlab  git@<GITLAB_HOST>:<GITLAB_USER>/nvchad_config.git (push)
-```
-
-### 日常推送
-
-```bash
-git push origin main   # 推往 GitHub
-git push gitlab main   # 推往 GitLab（自架）
-```
-
-或封裝成 alias 方便使用：
-
-```bash
-# 加入 ~/.bashrc 或 ~/.zshrc
-alias gpush='git push origin main && git push gitlab main'
-```
-
-### 從任一遠端拉取
-
-```bash
-git pull origin main   # 從 GitHub 拉
-git pull gitlab main   # 從 GitLab 拉
+nvim --headless "+Lazy! sync" +qa
 ```
 
 ---
 
-## 一鍵安裝腳本
+## Windows 手動部署
 
-`setup-nvchad.sh` 整合了上述所有步驟，在全新機器上執行一條命令即可完成：
+適合：Windows 環境，圖形介面工具需要手動安裝，最後套用 nvim 設定。
+
+### 1. 安裝 Neovim
+
+前往 [Neovim Releases](https://github.com/neovim/neovim/releases/latest) 下載 `nvim-win64.msi`，執行安裝精靈。
+
+或使用 winget：
+```powershell
+winget install Neovim.Neovim
+```
+
+安裝後確認版本（在 PowerShell 或 cmd）：
+```powershell
+nvim --version
+```
+
+### 2. 安裝 Node.js 與 yarn
+
+至 [nodejs.org](https://nodejs.org) 下載 LTS 版安裝，安裝後：
+
+```powershell
+npm install -g yarn
+```
+
+### 3. 安裝 ripgrep
+
+```powershell
+winget install BurntSushi.ripgrep.MSVC
+```
+
+或至 [ripgrep Releases](https://github.com/BurntSushi/ripgrep/releases) 下載 `ripgrep-x86_64-pc-windows-msvc.zip`，解壓後將 `rg.exe` 加入 PATH。
+
+### 4. 取得此 repo
+
+```powershell
+# clone（需先安裝 git：winget install Git.Git）
+git clone https://github.com/HANK572718/nvchad_config.git
+
+# 或直接從 GitHub 下載 ZIP 解壓
+```
+
+### 5. 複製設定到 Neovim 設定目錄
+
+Windows 的 Neovim 設定目錄為 `%LOCALAPPDATA%\nvim`，通常是：
+
+```
+C:\Users\<你的使用者名稱>\AppData\Local\nvim\
+```
+
+在 PowerShell 中執行：
+
+```powershell
+# 若目錄已存在先備份
+$nvimDir = "$env:LOCALAPPDATA\nvim"
+if (Test-Path $nvimDir) {
+    Rename-Item $nvimDir "$nvimDir.bak"
+}
+
+# 複製 repo 內容到設定目錄
+Copy-Item -Path ".\nvchad_config\*" -Destination $nvimDir -Recurse -Force
+```
+
+或者直接在檔案總管中：將 repo 資料夾改名為 `nvim` 後放入 `AppData\Local\` 即可。
+
+### 6. 開啟 Neovim
+
+開啟 PowerShell 或 Windows Terminal，輸入：
+
+```powershell
+nvim
+```
+
+首次開啟時 lazy.nvim 會自動安裝所有插件，等待完成後重啟即可使用。
+
+---
+
+## 一鍵腳本（Linux）
+
+Linux 平台可使用 `setup-nvchad.sh` 自動完成以上所有步驟：
 
 ```bash
+# 若已 clone 此 repo
 bash setup-nvchad.sh
+
+# 或直接從網路執行
+bash <(curl -fsSL https://raw.githubusercontent.com/HANK572718/nvchad_config/main/setup-nvchad.sh)
 ```
 
-腳本支援兩種安裝情境，自動偵測並提示推薦選項：
-
-**情境 A — USB / 本機已有設定**（腳本與設定在同一目錄，或 `~/.config/nvim` 已存在）
-→ 步驟 3（SSH 設定）自動略過，直接進入複製與後續步驟
-
-**情境 B — 遠端 clone**（全新機器，無任何本機設定）
-→ 完整執行 SSH 金鑰產生、平台連線確認、clone
-
-腳本流程（共 8 步驟）：
-
-1. 安裝系統依賴（git、ripgrep、nodejs、Neovim 0.11+）
-2. **選擇設定來源**（自動偵測並推薦）
-   - `[1]` 使用本機設定（USB / 已複製到本機）
-   - `[2]` 從 **GitHub** clone
-   - `[3]` 從 **GitLab（自架）** clone
-   - `[4]` 跳過，只安裝 Neovim 本體
-3. SSH Key 產生 + 平台連線確認（僅選 2 / 3 時執行）
-4. 複製或 clone 設定到 `~/.config/nvim`
-5. Git 身份設定 + 雙遠端設定（互動提示）
-6. 安裝 yarn
-7. Headless Lazy sync（安裝所有 plugins）
-8. **系統管理腳本選單**（可選，多選或跳過）
-   - 帳號管理、網路管理、權限管理、系統報告、VNC、顯示設定
-
-> 若選擇 GitLab，請先在腳本頂部填入 `GITLAB_HOST` 和 `GITLAB_USER` 變數。
+腳本會自動偵測本機狀態、選擇安裝來源（本機 / GitHub / GitLab），並在最後提供系統管理腳本選單。
 
 ---
 
-## 後續步驟
+## 首次開啟後的設定
 
-安裝完成後，開啟 Neovim 執行：
+安裝完成後，進入 nvim 執行以下指令安裝 LSP 與格式化工具：
 
 ```vim
 :MasonInstall pyright black isort debugpy
 ```
 
-首次開啟若有 plugin 未完整安裝，可執行：
+| 工具 | 用途 |
+|------|------|
+| `pyright` | Python 語言伺服器（LSP） |
+| `black` | Python 格式化 |
+| `isort` | import 排序 |
+| `debugpy` | Python 除錯（DAP） |
+
+若插件未完整安裝，可手動觸發同步：
 
 ```vim
 :Lazy sync
 ```
 
-更多鍵位與設計說明見 [`CLAUDE.md`](../CLAUDE.md)。
+---
+
+## Neovim 背景知識
+
+### 模式編輯（Modal Editing）
+
+Neovim 最核心的概念：不同模式下鍵盤有不同用途，手不必離開主鍵區。
+
+| 模式 | 進入方式 | 用途 |
+|------|----------|------|
+| **Normal** | `Esc` 或 `jk` | 預設模式，移動游標、執行操作 |
+| **Insert** | `i` / `a` / `o` | 輸入文字，像一般編輯器 |
+| **Visual** | `v`（字元）`V`（整行）`Ctrl-v`（區塊） | 選取文字後批次操作 |
+| **Command** | `;` 或 `:` | 執行指令，如 `:w` 存檔、`:q` 離開 |
+
+> **新手提示**：卡住按 `Esc`（或 `jk`）回到 Normal 模式，再按 `;q!` 強制離開。
+
+### Leader 鍵
+
+本設定的 Leader 鍵為 `Space`（空白鍵）。大部分功能快捷鍵格式為：
+
+```
+<Space> + 一或兩個字母
+```
+
+例如 `<Space>ff` = 按住空白鍵，再按 `f`、`f`。
+
+### NvChad 架構
+
+```
+NvChad（UI 框架 + 基礎設定）
+  └─ lazy.nvim（插件管理器）
+       ├─ nvim-tree（檔案樹）
+       ├─ Telescope（模糊搜尋）
+       ├─ nvim-cmp（自動補全）
+       └─ ... 其餘插件
+本 repo 的 lua/ 在上面追加：LSP、DAP、格式化、個人鍵位
+```
+
+- 首次開啟時 lazy.nvim 自動下載所有插件
+- 輸入 `:Lazy` 可查看插件狀態
+- 輸入 `<Space>ch` 可開啟 NvChad 內建快捷鍵速查表
+
+---
+
+## 快捷鍵總覽
+
+### 模式切換
+
+| 按鍵 | 動作 |
+|------|------|
+| `i` | 游標前進入 Insert |
+| `a` | 游標後進入 Insert |
+| `o` | 新增下一行並進入 Insert |
+| `jk` | Insert → Normal（本設定自訂） |
+| `;` | Normal → Command（本設定自訂，取代 `:`） |
+| `v` / `V` | 進入 Visual / Visual Line |
+
+### 檔案與搜尋
+
+| 按鍵 | 動作 |
+|------|------|
+| `<Space>ff` | 搜尋檔案（遵守 .gitignore） |
+| `<Space>fF` | 搜尋所有檔案（含隱藏 / ignored） |
+| `<Space>fw` | 全域搜尋文字（live grep） |
+| `<Space>fW` | 全域搜尋（含 ignored 目錄） |
+| `<Space>fb` | 搜尋已開啟的 buffer |
+| `<Space>e` | 開關檔案樹（nvim-tree） |
+
+### 緩衝區（Buffer）與視窗
+
+| 按鍵 | 動作 |
+|------|------|
+| `<Alt-1>` ~ `<Alt-9>` | 直接跳到第 N 個 buffer |
+| `<Space>x` | 關閉目前 buffer |
+| `<Ctrl-h/j/k/l>` | 跨視窗移動游標 |
+
+### LSP（語言伺服器）
+
+| 按鍵 | 動作 |
+|------|------|
+| `gd` | 跳到定義 |
+| `gI` / `gr` | 查找所有引用 |
+| `K` | 顯示文件說明（hover） |
+| `<Space>o` | 目前檔案的符號清單 |
+| `<Space>O` | 整個專案的符號清單 |
+| `<Space>ci` | 查看誰呼叫此函式（incoming calls） |
+| `<Space>co` | 查看此函式呼叫了誰（outgoing calls） |
+| `<Space>ra` | 重新命名符號 |
+| `<Space>ca` | Code action |
+| `[d` / `]d` | 上 / 下一個診斷錯誤 |
+
+### 除錯（DAP）
+
+| 按鍵 | 動作 |
+|------|------|
+| `<F5>` | 啟動 / 繼續除錯 |
+| `<F10>` | Step over（跨過） |
+| `<F11>` | Step into（進入） |
+| `<F12>` | Step out（跳出） |
+| `<Space>db` | 切換中斷點 |
+| `<Space>du` | 開關除錯 UI |
+
+### 終端機
+
+| 按鍵 | 動作 |
+|------|------|
+| `<Space>h` | 水平分割終端機 |
+| `<Space>v` | 垂直分割終端機 |
+| `<Ctrl-x>` | 在終端機內切回 Normal 模式 |
+
+> 完整鍵位定義見 [`lua/mappings.lua`](../lua/mappings.lua)，NvChad 原生鍵位見 `<Space>ch`。
