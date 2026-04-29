@@ -116,9 +116,25 @@ if (Test-Path $InstallerPath) {
 # =============================================================
 Write-Step "Installing MSYS2 to $InstallDir (silent)..."
 
+# If the directory already exists, remove it first so the installer does not
+# encounter an existing-directory conflict (which causes exit code 1 even
+# though the installation actually succeeds in the background).
+if (Test-Path $InstallDir) {
+    Write-Warn "Removing existing $InstallDir before reinstall..."
+    Remove-Item -Recurse -Force $InstallDir
+    Write-Ok "Removed $InstallDir"
+}
+
 try {
+    # Qt Installer Framework silent flags:
+    #   in            = install operation
+    #   --root        = target directory
+    #   --accept-licenses          = auto-accept all licence agreements
+    #   --accept-messages          = auto-dismiss any message dialogs
+    #   --confirm-command          = suppress final confirmation prompt
     $proc = Start-Process -FilePath $InstallerPath `
-        -ArgumentList "install", "--root", $InstallDir, "--confirm-command" `
+        -ArgumentList "in", "--root", $InstallDir,
+                      "--accept-licenses", "--accept-messages", "--confirm-command" `
         -Wait -PassThru
     if ($proc.ExitCode -ne 0) {
         Write-Fail "Installer exited with code $($proc.ExitCode)"
