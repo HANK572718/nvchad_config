@@ -1,5 +1,6 @@
 return {
   -- nvim-tree：覆寫 H 同時 toggle dotfiles + gitignore 兩個 filter
+  -- 並讓 tree root 跟隨 tab-local cwd（搭配 :tcd 與 project.nvim）
   {
     "nvim-tree/nvim-tree.lua",
     opts = function()
@@ -22,6 +23,16 @@ return {
           api.tree.toggle_gitignore_filter()
         end, { buffer = bufnr, noremap = true, desc = "Toggle gitignore filter" })
       end
+
+      -- ── Tab-local 根目錄整合 ──────────────────────────────
+      -- :tcd 換目錄時，tree root 自動切換；切 buffer 時尊重該 buffer 所在 cwd
+      default_opts.sync_root_with_cwd = true
+      default_opts.respect_buf_cwd    = true
+      default_opts.update_focused_file = vim.tbl_deep_extend(
+        "force",
+        default_opts.update_focused_file or {},
+        { enable = true, update_root = true }
+      )
 
       return default_opts
     end,
@@ -209,6 +220,38 @@ return {
           }
         end,
       })
+    end,
+  },
+
+  -- =============================================================
+  -- project.nvim: 自動偵測專案根目錄（搭配 nvim-tree sync_root_with_cwd）
+  -- 用 :tcd（tab-local）而非 :cd，每個 tab 可獨立掛在不同專案
+  -- 開檔/切 buffer 會自動往上找 .git / pyproject.toml 等標記，找到就 tcd
+  -- :Telescope projects 可挑歷史專案；選中後對「當前 tab」執行 tcd
+  -- =============================================================
+  {
+    "ahmedkhalf/project.nvim",
+    lazy = false,
+    dependencies = { "nvim-telescope/telescope.nvim" },
+    config = function()
+      require("project_nvim").setup {
+        detection_methods = { "lsp", "pattern" },
+        patterns = {
+          ".git",
+          "pyproject.toml",
+          "requirements.txt",
+          "package.json",
+          "Cargo.toml",
+          "Makefile",
+          "go.mod",
+        },
+        scope_chdir   = "tab",   -- 關鍵：偵測到根目錄時用 :tcd 而非 :cd
+        silent_chdir  = true,    -- 自動切換不顯示訊息
+        manual_mode   = false,   -- 開檔時自動偵測 + 切換
+        show_hidden   = false,
+      }
+      -- 註冊 Telescope 擴充（pcall 避免 telescope 還沒載入時報錯）
+      pcall(require("telescope").load_extension, "projects")
     end,
   },
 

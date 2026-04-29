@@ -40,6 +40,34 @@ map("n", "<leader>fW", function()
   })
 end, { desc = "telescope live grep args (no gitignore) | 範例: foo -- -t py -g '!test_*'" })
 
+-- =============================================================
+-- 專案／Tab-local 根目錄
+-- <leader>fP : Telescope projects（從歷史專案挑，套用 :tcd 到當前 tab）
+-- <leader>cd : 手動輸入路徑，對當前 tab 執行 :tcd
+-- <leader>tn : 開新 tab + 輸入路徑 :tcd（每個 tab 一個專案根）
+-- :tcd <path> 也可直接用，nvim-tree / terminal 會自動跟隨
+-- =============================================================
+map("n", "<leader>fP", "<cmd>Telescope projects<cr>", { desc = "Telescope 專案列表（tab-local cd）" })
+
+map("n", "<leader>cd", function()
+  vim.ui.input({ prompt = "tcd → ", default = vim.fn.getcwd(-1, 0), completion = "dir" }, function(input)
+    if input and input ~= "" then
+      vim.cmd("tcd " .. vim.fn.fnameescape(vim.fn.expand(input)))
+      vim.notify("Tab cwd → " .. vim.fn.getcwd(-1, 0))
+    end
+  end)
+end, { desc = "Tab-local :tcd（輸入路徑）" })
+
+map("n", "<leader>tn", function()
+  vim.ui.input({ prompt = "新 tab tcd → ", completion = "dir" }, function(input)
+    if input and input ~= "" then
+      vim.cmd "tabnew"
+      vim.cmd("tcd " .. vim.fn.fnameescape(vim.fn.expand(input)))
+      vim.notify("New tab @ " .. vim.fn.getcwd(-1, 0))
+    end
+  end)
+end, { desc = "新 tab + tcd 到指定專案" })
+
 -- Telescope LSP 符號搜尋（類似 VSCode Ctrl+Shift+O）
 map("n", "<leader>o", "<cmd>Telescope lsp_document_symbols<cr>", { desc = "LSP 顯示文件符號列表" })
 map("n", "<leader>O", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", { desc = "LSP 顯示工作區符號列表" })
