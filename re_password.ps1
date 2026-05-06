@@ -17,10 +17,11 @@ Write-Host "1. Create new account"
 Write-Host "2. Change existing account password"
 Write-Host "3. View all local accounts"
 Write-Host "4. Delete account"
-Write-Host "5. Exit"
+Write-Host "5. Manage account group membership"
+Write-Host "6. Exit"
 Write-Host ""
 
-$choice = Read-Host "Enter option (1-5)"
+$choice = Read-Host "Enter option (1-6)"
 
 switch ($choice) {
     "1" {
@@ -319,6 +320,77 @@ switch ($choice) {
     }
 
     "5" {
+        Write-Host "`n=== Manage Account Group Membership ===" -ForegroundColor Green
+        Write-Host "`nCurrent local accounts:" -ForegroundColor Yellow
+        Get-LocalUser | Select-Object Name, Enabled | Format-Table
+
+        $username = Read-Host "Enter username to manage"
+
+        $userExists = Get-LocalUser -Name $username -ErrorAction SilentlyContinue
+        if (-not $userExists) {
+            Write-Host "Error: Account '$username' does not exist!" -ForegroundColor Red
+            pause
+            exit
+        }
+
+        $managedGroups = @(
+            @{ Name = "Administrators";              Color = "Magenta"; Desc = "Full system admin privileges" },
+            @{ Name = "Users";                       Color = "Green";   Desc = "Local GUI login" },
+            @{ Name = "Remote Desktop Users";        Color = "Cyan";    Desc = "RDP remote desktop login" },
+            @{ Name = "docker-users";                Color = "Blue";    Desc = "Use Docker Desktop without admin" },
+            @{ Name = "Hyper-V Administrators";      Color = "Blue";    Desc = "Manage Hyper-V / WSL2 VMs" },
+            @{ Name = "Performance Monitor Users";   Color = "Gray";    Desc = "Read performance counters" },
+            @{ Name = "Event Log Readers";           Color = "Gray";    Desc = "Read Windows event logs" },
+            @{ Name = "Network Configuration Operators"; Color = "Gray"; Desc = "Change network settings" }
+        )
+
+        Write-Host "`n=== Current Group Membership for '$username' ===" -ForegroundColor Cyan
+        foreach ($g in $managedGroups) {
+            $groupExists = Get-LocalGroup -Name $g.Name -ErrorAction SilentlyContinue
+            if (-not $groupExists) { continue }
+
+            $isMember = (Get-LocalGroupMember -Group $g.Name -ErrorAction SilentlyContinue).Name -contains "$env:COMPUTERNAME\$username"
+            $status = if ($isMember) { "[IN]  " } else { "[OUT] " }
+            $statusColor = if ($isMember) { "Green" } else { "Gray" }
+            Write-Host "$status $($g.Name) - $($g.Desc)" -ForegroundColor $statusColor
+        }
+
+        Write-Host ""
+        foreach ($g in $managedGroups) {
+            $groupExists = Get-LocalGroup -Name $g.Name -ErrorAction SilentlyContinue
+            if (-not $groupExists) { continue }
+
+            $isMember = (Get-LocalGroupMember -Group $g.Name -ErrorAction SilentlyContinue).Name -contains "$env:COMPUTERNAME\$username"
+            $action = if ($isMember) { "Remove from" } else { "Add to" }
+            $answer = Read-Host "$action '$($g.Name)'? (Y/N, Enter to skip)"
+
+            if ($answer -eq "Y" -or $answer -eq "y") {
+                try {
+                    if ($isMember) {
+                        Remove-LocalGroupMember -Group $g.Name -Member $username -ErrorAction Stop
+                        Write-Host "Removed from $($g.Name)" -ForegroundColor Yellow
+                    } else {
+                        Add-LocalGroupMember -Group $g.Name -Member $username -ErrorAction Stop
+                        Write-Host "Added to $($g.Name)" -ForegroundColor $g.Color
+                    }
+                } catch {
+                    Write-Host "Failed: $($_.Exception.Message)" -ForegroundColor Red
+                }
+            }
+        }
+
+        Write-Host "`n=== Updated Group Membership for '$username' ===" -ForegroundColor Cyan
+        $finalGroups = Get-LocalGroup | Where-Object {
+            (Get-LocalGroupMember -Group $_.Name -ErrorAction SilentlyContinue).Name -contains "$env:COMPUTERNAME\$username"
+        }
+        if ($finalGroups) {
+            $finalGroups | Select-Object Name, Description | Format-Table -AutoSize
+        } else {
+            Write-Host "This account does not belong to any groups" -ForegroundColor Gray
+        }
+    }
+
+    "6" {
         Write-Host "Goodbye!" -ForegroundColor Yellow
         exit
     }
