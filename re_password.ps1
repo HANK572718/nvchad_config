@@ -320,7 +320,7 @@ switch ($choice) {
     }
 
     "5" {
-        Write-Host "`n=== Manage Account Group Membership ===" -ForegroundColor Green
+        Write-Host "`n=== Manage Account ===" -ForegroundColor Green
         Write-Host "`nCurrent local accounts:" -ForegroundColor Yellow
         Get-LocalUser | Select-Object Name, Enabled | Format-Table
 
@@ -333,15 +333,34 @@ switch ($choice) {
             exit
         }
 
+        # --- Enable / Disable ---
+        $isEnabled = (Get-LocalUser -Name $username).Enabled
+        $enabledStatus = if ($isEnabled) { "ENABLED" } else { "DISABLED" }
+        $enabledColor  = if ($isEnabled) { "Green"   } else { "Red"     }
+        Write-Host "`nAccount status: $enabledStatus" -ForegroundColor $enabledColor
+
+        $toggleAction = if ($isEnabled) { "Disable" } else { "Enable" }
+        $toggleAnswer = Read-Host "$toggleAction this account? (Y/N, Enter to skip)"
+        if ($toggleAnswer -eq "Y" -or $toggleAnswer -eq "y") {
+            if ($isEnabled) {
+                Disable-LocalUser -Name $username
+                Write-Host "Account disabled" -ForegroundColor Red
+            } else {
+                Enable-LocalUser -Name $username
+                Write-Host "Account enabled" -ForegroundColor Green
+            }
+        }
+
+        # --- Group Membership ---
         $managedGroups = @(
-            @{ Name = "Administrators";              Color = "Magenta"; Desc = "Full system admin privileges" },
-            @{ Name = "Users";                       Color = "Green";   Desc = "Local GUI login" },
-            @{ Name = "Remote Desktop Users";        Color = "Cyan";    Desc = "RDP remote desktop login" },
-            @{ Name = "docker-users";                Color = "Blue";    Desc = "Use Docker Desktop without admin" },
-            @{ Name = "Hyper-V Administrators";      Color = "Blue";    Desc = "Manage Hyper-V / WSL2 VMs" },
-            @{ Name = "Performance Monitor Users";   Color = "Gray";    Desc = "Read performance counters" },
-            @{ Name = "Event Log Readers";           Color = "Gray";    Desc = "Read Windows event logs" },
-            @{ Name = "Network Configuration Operators"; Color = "Gray"; Desc = "Change network settings" }
+            @{ Name = "Administrators";                  Color = "Magenta"; Desc = "Full system admin privileges" },
+            @{ Name = "Users";                           Color = "Green";   Desc = "Local GUI login" },
+            @{ Name = "Remote Desktop Users";            Color = "Cyan";    Desc = "RDP remote desktop login" },
+            @{ Name = "docker-users";                    Color = "Blue";    Desc = "Use Docker Desktop without admin" },
+            @{ Name = "Hyper-V Administrators";          Color = "Blue";    Desc = "Manage Hyper-V / WSL2 VMs" },
+            @{ Name = "Performance Monitor Users";       Color = "Gray";    Desc = "Read performance counters" },
+            @{ Name = "Event Log Readers";               Color = "Gray";    Desc = "Read Windows event logs" },
+            @{ Name = "Network Configuration Operators"; Color = "Gray";    Desc = "Change network settings" }
         )
 
         Write-Host "`n=== Current Group Membership for '$username' ===" -ForegroundColor Cyan
@@ -379,7 +398,9 @@ switch ($choice) {
             }
         }
 
-        Write-Host "`n=== Updated Group Membership for '$username' ===" -ForegroundColor Cyan
+        Write-Host "`n=== Final Status for '$username' ===" -ForegroundColor Cyan
+        $finalEnabled = (Get-LocalUser -Name $username).Enabled
+        Write-Host "Account: $(if ($finalEnabled) { 'ENABLED' } else { 'DISABLED' })" -ForegroundColor $(if ($finalEnabled) { 'Green' } else { 'Red' })
         $finalGroups = Get-LocalGroup | Where-Object {
             (Get-LocalGroupMember -Group $_.Name -ErrorAction SilentlyContinue).Name -contains "$env:COMPUTERNAME\$username"
         }
