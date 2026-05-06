@@ -59,6 +59,23 @@ switch ($choice) {
                 Write-Host "Added to Remote Desktop Users group" -ForegroundColor Green
             }
 
+            $addToUsers = Read-Host "`nAllow this account to login locally (add to Users group)? (Y/N)"
+            if ($addToUsers -eq "Y" -or $addToUsers -eq "y") {
+                Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction Stop
+                Write-Host "Added to Users group - account will be visible on login screen" -ForegroundColor Green
+            } else {
+                Write-Host "Not added to Users group - account will only be accessible via Remote Desktop" -ForegroundColor Yellow
+            }
+
+            $addToAdmin = Read-Host "`nGrant administrator privileges (add to Administrators group)? (Y/N)"
+            if ($addToAdmin -eq "Y" -or $addToAdmin -eq "y") {
+                Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction Stop
+                Write-Host "Added to Administrators group - account has full system privileges" -ForegroundColor Magenta
+                Write-Host "WARNING: This account now has full administrative access!" -ForegroundColor Red
+            } else {
+                Write-Host "Not added to Administrators group - account has standard user privileges" -ForegroundColor Green
+            }
+
             Write-Host "`n=== Account Information ===" -ForegroundColor Cyan
             Get-LocalUser -Name $username | Select-Object Name, Enabled, PasswordExpires, PasswordNeverExpires, LastLogon | Format-List
 
@@ -102,6 +119,7 @@ switch ($choice) {
             Write-Host "`n=== Account Information ===" -ForegroundColor Cyan
             Get-LocalUser -Name $username | Select-Object Name, Enabled, PasswordExpires, PasswordNeverExpires, LastLogon | Format-List
 
+            # Check and manage Remote Desktop Users group
             $inRDPGroup = Get-LocalGroupMember -Group "Remote Desktop Users" -ErrorAction SilentlyContinue | Where-Object {$_.Name -like "*$username"}
             if ($inRDPGroup) {
                 Write-Host "This account is already in Remote Desktop Users group" -ForegroundColor Green
@@ -110,6 +128,31 @@ switch ($choice) {
                 if ($addToRDP -eq "Y" -or $addToRDP -eq "y") {
                     Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
                     Write-Host "Added to Remote Desktop Users group" -ForegroundColor Green
+                }
+            }
+
+            # Check and manage Users group
+            $inUsersGroup = Get-LocalGroupMember -Group "Users" -ErrorAction SilentlyContinue | Where-Object {$_.Name -like "*$username"}
+            if ($inUsersGroup) {
+                Write-Host "This account is already in Users group" -ForegroundColor Green
+            } else {
+                $addToUsers = Read-Host "`nAllow this account to login locally (add to Users group)? (Y/N)"
+                if ($addToUsers -eq "Y" -or $addToUsers -eq "y") {
+                    Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction Stop
+                    Write-Host "Added to Users group - account will be visible on login screen" -ForegroundColor Green
+                }
+            }
+
+            # Check and manage Administrators group
+            $inAdminGroup = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue | Where-Object {$_.Name -like "*$username"}
+            if ($inAdminGroup) {
+                Write-Host "This account is already in Administrators group" -ForegroundColor Magenta
+            } else {
+                $addToAdmin = Read-Host "`nGrant administrator privileges (add to Administrators group)? (Y/N)"
+                if ($addToAdmin -eq "Y" -or $addToAdmin -eq "y") {
+                    Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction Stop
+                    Write-Host "Added to Administrators group - account has full system privileges" -ForegroundColor Magenta
+                    Write-Host "WARNING: This account now has full administrative access!" -ForegroundColor Red
                 }
             }
 
