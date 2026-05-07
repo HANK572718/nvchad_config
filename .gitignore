@@ -1,2 +1,7 @@
 lazy-lock.json
 InstallationLog.txt
+
+# Large binaries / installers
+*.msi
+*.zip
+*.tar.gz
