@@ -8,6 +8,15 @@ map("n", ";", ":", { desc = "CMD enter command mode" })
 -- 在 Insert 模式下，按 jk 快速回到 Normal 模式（替代 <ESC>）
 map("i", "jk", "<ESC>")
 
+-- Alt+i：tab-local 浮動終端，覆蓋 NvChad 預設的全域 "floatTerm"
+-- 原理：id 加入 tabpage handle，讓每個 tab 在 g.nvchad_terms 有獨立 entry
+map({ "n", "t" }, "<A-i>", function()
+  require("nvchad.term").toggle {
+    pos = "float",
+    id  = "floatTerm_" .. vim.api.nvim_get_current_tabpage(),
+  }
+end, { desc = "terminal toggle float (tab-local)" })
+
 -- =============================================================
 -- Ctrl+U/D 滾動：insert / terminal mode 直接可用
 -- insert mode：<C-\><C-o> 執行一次 normal 指令後自動回 insert mode
@@ -48,6 +57,21 @@ end, { desc = "telescope live grep args (no gitignore) | 範例: foo -- -t py -g
 -- :tcd <path> 也可直接用，nvim-tree / terminal 會自動跟隨
 -- =============================================================
 map("n", "<leader>fP", "<cmd>Telescope projects<cr>", { desc = "Telescope 專案列表（tab-local cd）" })
+
+-- 設定 / 清除當前 tabpage 的自訂標籤（顯示在右上角 tab 列）
+-- 空白輸入 = 清除自訂標籤，恢復顯示 cwd basename
+map("n", "<leader>tR", function()
+  local ok, cur = pcall(vim.api.nvim_tabpage_get_var, 0, "tab_label")
+  vim.ui.input({ prompt = "Tab label (空=恢復 cwd): ", default = ok and cur or "" }, function(input)
+    if input == nil then return end
+    if input == "" then
+      pcall(vim.api.nvim_tabpage_del_var, 0, "tab_label")
+    else
+      vim.api.nvim_tabpage_set_var(0, "tab_label", input)
+    end
+    vim.cmd "redrawtabline"
+  end)
+end, { desc = "Tab：設定自訂標籤（空=清除）" })
 
 map("n", "<leader>cd", function()
   vim.ui.input({ prompt = "tcd → ", default = vim.fn.getcwd(-1, 0), completion = "dir" }, function(input)
