@@ -1,0 +1,38 @@
+[2025-11-18 19:03:30] [Info] ========================================
+[2025-11-18 19:03:30] [Info] Starting Windows Time Server setup
+[2025-11-18 19:03:30] [Info] ========================================
+[2025-11-18 19:03:30] [Info] Obtaining local IP information...
+[2025-11-18 19:03:30] [Info]   Interface: vEthernet (外部用), IP: 192.168.168.199
+[2025-11-18 19:03:30] [Info]   Interface: vEthernet (Default Switch), IP: 172.18.112.1
+[2025-11-18 19:03:30] [Info]   Interface: 區域連線* 4, IP: 169.254.84.116
+[2025-11-18 19:03:30] [Info]   Interface: 區域連線* 3, IP: 169.254.199.254
+[2025-11-18 19:03:30] [Info]   Interface: 藍牙網路連線, IP: 169.254.73.118
+[2025-11-18 19:03:30] [Info]   Interface: 乙太網路, IP: 192.168.1.98
+[2025-11-18 19:03:30] [Info]   Interface: Tailscale, IP: 100.65.186.93
+[2025-11-18 19:03:30] [Info] Stopping W32Time service...
+[2025-11-18 19:03:31] [Info] Configuring W32Time as NTP Server mode...
+[2025-11-18 19:03:31] [Info] Configuring high-precision time sync parameters...
+[2025-11-18 19:03:31] [Info] Setting external time source...
+[2025-11-18 19:03:31] [Info] Setting service to auto-start...
+[2025-11-18 19:03:31] [Info] Starting W32Time service...
+[2025-11-18 19:03:31] [Info] Forcing synchronization with external time source...
+[2025-11-18 19:03:31] [Info] Configuring firewall rules (allowing UDP 123)...
+[2025-11-18 19:03:33] [Success] Firewall rules configured successfully
+[2025-11-18 19:03:33] [Info] 
+[2025-11-18 19:03:33] [Success] ========================================
+[2025-11-18 19:03:33] [Success] Time server setup completed!
+[2025-11-18 19:03:33] [Success] ========================================
+[2025-11-18 19:03:33] [Info] 
+[2025-11-18 19:03:33] [Info] Client computers should use the following IP address to connect:
+[2025-11-18 19:03:33] [Success]   Recommended: 192.168.168.199 (Interface: vEthernet (外部用))
+[2025-11-18 19:03:33] [Success]   Recommended: 172.18.112.1 (Interface: vEthernet (Default Switch))
+[2025-11-18 19:03:33] [Success]   Recommended: 192.168.1.98 (Interface: 乙太網路)
+[2025-11-18 19:03:33] [Info] 
+[2025-11-18 19:03:33] [Info] Current service status:
+[2025-11-18 19:03:33] [Info]   Service status: Running
+[2025-11-18 19:03:33] [Info]   Startup type: Automatic
+[2025-11-18 19:03:33] [Info] 
+[2025-11-18 19:03:33] [Info] Running w32tm /query /status to check status...
+[2025-11-18 19:03:33] [Info] 
+[2025-11-18 19:03:33] [Success] Setup completed! This computer is now an NTP time server
+[2025-11-18 19:03:33] [Info] Other computers can connect to this server using setup_time_client.ps1
