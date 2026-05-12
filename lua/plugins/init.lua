@@ -106,15 +106,29 @@ return {
   -- test new blink
   -- { import = "nvchad.blink.lazyspec" },
 
-  -- {
-  -- 	"nvim-treesitter/nvim-treesitter",
-  -- 	opts = {
-  -- 		ensure_installed = {
-  -- 			"vim", "lua", "vimdoc",
-  --      "html", "css"
-  -- 		},
-  -- 	},
-  -- },
+  -- Treesitter：語法解析器（顏色高亮、程式碼折疊、結構導航）
+  -- ensure_installed 在 nvim-treesitter 載入時自動下載缺漏的 parser
+  -- auto_install = true 開啟未列出的語言時也會自動下載對應 parser
+  {
+    "nvim-treesitter/nvim-treesitter",
+    opts = {
+      ensure_installed = {
+        -- 編輯 nvim 設定本身
+        "vim", "lua", "vimdoc", "luadoc", "query",
+        -- 主要工作語言
+        "python", "bash",
+        -- 常用標記/設定檔
+        "markdown", "markdown_inline", "json", "yaml", "toml",
+        -- Web 相關
+        "html", "css", "javascript", "typescript",
+        -- 其他
+        "dockerfile", "gitignore", "regex",
+      },
+      auto_install = true,        -- 開啟新檔案類型時自動裝 parser
+      highlight = { enable = true },
+      indent    = { enable = true },
+    },
+  },
 
   -- Image preview with custom Telescope + chafa (Windows-compatible)
   -- No additional plugins needed - uses built-in Telescope API
