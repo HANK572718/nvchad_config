@@ -37,11 +37,20 @@ vim.lsp.config.pyright = {
       },
     },
   },
-  -- 每次新增設定時動態注入 Python 路徑，並顯示通知
-  on_new_config = function(config, root_dir)
-    local python_path = get_python_path(root_dir)
+  -- 在 LSP 啟動前注入 Python 路徑（nvim 0.11+ 原生 API）
+  before_init = function(_, config)
+    local root = config.root_dir or vim.fn.getcwd()
+    local python_path = get_python_path(root)
+    config.settings = config.settings or {}
+    config.settings.python = config.settings.python or {}
     config.settings.python.pythonPath = python_path
     vim.notify("Pyright using: " .. python_path, vim.log.levels.INFO)
+  end,
+  -- 啟動後再通知一次，確保 pyright 重新讀取設定
+  on_init = function(client)
+    client.notify("workspace/didChangeConfiguration", {
+      settings = client.config.settings,
+    })
   end,
 }
 
