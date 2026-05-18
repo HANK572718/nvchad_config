@@ -7,33 +7,33 @@
 #   2. 找到在該 VT 上執行的 Xorg 進程（從 cmdline 的 vt 參數判斷）
 #   3. 用 ss 配對該 PID 擁有的 X11 socket 取得 display 編號
 #   4. 從 cmdline 取得 -auth 路徑
-#   5. 偵測到變化時重啟 x11vnc
+#   5. 偵測到變化 OR x11vnc 死亡時 重啟 x11vnc
+#
+# x11vnc 啟動旗標說明（重點）：
+#   -noshm   不用 MIT-SHM 共享記憶體做螢幕 polling。
+#            原因：wrapper 以 root 跑、目標 Xorg 由 gdm/user 擁有，
+#            X server 的 SHM 段只允許建立者那個 UID 存取，
+#            root attach 會被拒 (BadAccess on X_ShmAttach) 導致 x11vnc 直接退出。
 
 RFBAUTH="/etc/x11vnc/passwd"
 RFBPORT=5900
 VNC_PID=""
 
 get_active_xorg() {
-    # 取得當前 active VT
     local active_vt
     active_vt=$(cat /sys/class/tty/tty0/active 2>/dev/null)
     [ -z "$active_vt" ] && return
-
-    # 將 ttyN 轉為數字 N
     local vt_num="${active_vt#tty}"
 
-    # 找到在此 VT 上的 Xorg
     for pid in $(pgrep -x Xorg); do
         local xorg_vt
         xorg_vt=$(tr '\0' '\n' < /proc/"$pid"/cmdline 2>/dev/null | grep -oP '^vt\K[0-9]+$')
         [ "$xorg_vt" != "$vt_num" ] && continue
 
-        # 找到了，取 auth
         local auth
         auth=$(tr '\0' ' ' < /proc/"$pid"/cmdline 2>/dev/null | grep -oP '(?<=-auth )\S+')
         [ -z "$auth" ] && continue
 
-        # 用 ss 找此 PID listen 的 X11 socket
         local display
         display=$(ss -xlp 2>/dev/null | grep "pid=${pid}," | grep -oP '\.X11-unix/X\K[0-9]+' | head -1)
         [ -z "$display" ] && continue
@@ -41,6 +41,20 @@ get_active_xorg() {
         echo ":${display} ${auth}"
         return
     done
+}
+
+start_x11vnc() {
+    local display_num="$1" xauth="$2"
+    /usr/bin/x11vnc -display "$display_num" -auth "$xauth" \
+        -rfbauth "$RFBAUTH" -rfbport "$RFBPORT" \
+        -noshm \
+        -forever -noxdamage -repeat -shared -quiet &
+    VNC_PID=$!
+    echo "$(date): 啟動 x11vnc (PID=$VNC_PID) display=$display_num auth=$xauth"
+}
+
+vnc_alive() {
+    [ -n "$VNC_PID" ] && kill -0 "$VNC_PID" 2>/dev/null
 }
 
 cleanup() {
@@ -59,27 +73,27 @@ while true; do
         continue
     fi
 
-    if [ "$NEW_STATE" != "$CURRENT_STATE" ]; then
-        DISPLAY_NUM=$(echo "$NEW_STATE" | awk '{print $1}')
-        XAUTH=$(echo "$NEW_STATE" | awk '{print $2}')
+    DISPLAY_NUM=$(echo "$NEW_STATE" | awk '{print $1}')
+    XAUTH=$(echo "$NEW_STATE" | awk '{print $2}')
 
+    if [ "$NEW_STATE" != "$CURRENT_STATE" ]; then
         echo "$(date): 切換至 display=$DISPLAY_NUM auth=$XAUTH (舊: ${CURRENT_STATE:-無})"
 
-        # 停止舊的 x11vnc
-        if [ -n "$VNC_PID" ]; then
+        if vnc_alive; then
             echo "$(date): 停止舊的 x11vnc (PID=$VNC_PID)"
             kill "$VNC_PID" 2>/dev/null
             wait "$VNC_PID" 2>/dev/null
         fi
+        VNC_PID=""
 
         CURRENT_STATE="$NEW_STATE"
-
-        # 啟動新的 x11vnc
-        /usr/bin/x11vnc -display "$DISPLAY_NUM" -auth "$XAUTH" \
-            -rfbauth "$RFBAUTH" -rfbport "$RFBPORT" \
-            -forever -noxdamage -repeat -shared &
-        VNC_PID=$!
-        echo "$(date): 啟動 x11vnc (PID=$VNC_PID) display=$DISPLAY_NUM auth=$XAUTH"
+        start_x11vnc "$DISPLAY_NUM" "$XAUTH"
+    elif ! vnc_alive; then
+        # 目標 Xorg 沒變但 x11vnc 自己掛了 → 重啟
+        echo "$(date): 偵測到 x11vnc 已死，重啟中..."
+        VNC_PID=""
+        start_x11vnc "$DISPLAY_NUM" "$XAUTH"
+        sleep 2
     fi
 
     sleep 3
