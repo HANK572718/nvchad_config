@@ -2,7 +2,7 @@
 # =============================================================
 # setup-nvchad.sh
 # 全新 Linux 一鍵開發環境部署（x86 / ARM）
-# 支援：USB 本機安裝 / GitHub clone / GitLab clone
+# 支援：USB 本機安裝 / GitHub clone（SSH / HTTP）/ GitLab clone
 # Usage: bash setup-nvchad.sh
 # =============================================================
 
@@ -11,6 +11,7 @@ set -euo pipefail
 # ── 使用者設定 ────────────────────────────────────────────────
 GITHUB_USER="HANK572718"
 GITHUB_REPO="git@github.com:${GITHUB_USER}/nvchad_config.git"
+GITHUB_REPO_HTTP="https://github.com/${GITHUB_USER}/nvchad_config.git"
 
 # GitLab（自架）：請替換為你的實際值
 GITLAB_HOST="your-gitlab.example.com"   # ← 例如 gitlab.mycompany.com
@@ -27,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_FOLDER=""   # 管理腳本目錄，在步驟 4 後確定
 
 # ── 狀態 ──────────────────────────────────────────────────────
-CONFIG_MODE=""      # local / github / gitlab / skip
+CONFIG_MODE=""      # local / github / http_github / gitlab / skip
 NVCHAD_REPO=""
 
 # ── 顏色輸出 ──────────────────────────────────────────────────
@@ -162,17 +163,18 @@ case "$LOCAL_STATUS" in
     echo -e "  ${CYAN}[1]${RESET} 使用本機設定  ${YELLOW}（未偵測到，選此項無效）${RESET}"
     ;;
 esac
-echo -e "  ${CYAN}[2]${RESET} 從 GitHub clone   ($GITHUB_REPO)"
-echo -e "  ${CYAN}[3]${RESET} 從 GitLab clone   ($GITLAB_REPO)"
-echo -e "  ${CYAN}[4]${RESET} 跳過              （只安裝 Neovim，不設定 nvim）"
+echo -e "  ${CYAN}[2]${RESET} 從 GitHub clone（SSH）  ($GITHUB_REPO)"
+echo -e "  ${CYAN}[3]${RESET} 從 GitHub clone（HTTP） ($GITHUB_REPO_HTTP)  ${YELLOW}← 推薦（public repo）${RESET}"
+echo -e "  ${CYAN}[4]${RESET} 從 GitLab clone（SSH）  ($GITLAB_REPO)"
+echo -e "  ${CYAN}[5]${RESET} 跳過                    （只安裝 Neovim，不設定 nvim）"
 echo ""
 
 while true; do
-  read -rp "請輸入選項 [1-4]：" REPO_CHOICE
+  read -rp "請輸入選項 [1-5]：" REPO_CHOICE
   case "$REPO_CHOICE" in
     1)
       if [[ "$LOCAL_STATUS" == "none" ]]; then
-        warn "未偵測到本機設定，請選擇 2、3 或 4"
+        warn "未偵測到本機設定，請選擇 2、3、4 或 5"
         continue
       fi
       CONFIG_MODE="local"
@@ -182,26 +184,32 @@ while true; do
     2)
       CONFIG_MODE="github"
       NVCHAD_REPO="$GITHUB_REPO"
-      info "已選擇 GitHub：$NVCHAD_REPO"
+      info "已選擇 GitHub SSH：$NVCHAD_REPO"
       break
       ;;
     3)
+      CONFIG_MODE="http_github"
+      NVCHAD_REPO="$GITHUB_REPO_HTTP"
+      info "已選擇 GitHub HTTP：$NVCHAD_REPO"
+      break
+      ;;
+    4)
       if [[ "$GITLAB_HOST" == "your-gitlab.example.com" ]]; then
         warn "尚未設定 GITLAB_HOST / GITLAB_USER，請先編輯腳本頂部的對應變數後重新執行"
         exit 1
       fi
       CONFIG_MODE="gitlab"
       NVCHAD_REPO="$GITLAB_REPO"
-      info "已選擇 GitLab：$NVCHAD_REPO"
+      info "已選擇 GitLab SSH：$NVCHAD_REPO"
       break
       ;;
-    4)
+    5)
       CONFIG_MODE="skip"
       info "跳過 nvim 設定"
       break
       ;;
     *)
-      warn "請輸入 1、2、3 或 4"
+      warn "請輸入 1、2、3、4 或 5"
       ;;
   esac
 done
@@ -307,7 +315,7 @@ case "$CONFIG_MODE" in
     esac
     ;;
 
-  github | gitlab)
+  github | http_github | gitlab)
     if _backup_existing_nvim; then
       if [[ ! -d "$NVIM_CONFIG" ]]; then
         info "Clone $NVCHAD_REPO → $NVIM_CONFIG ..."
