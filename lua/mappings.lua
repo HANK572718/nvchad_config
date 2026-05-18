@@ -220,3 +220,37 @@ for i = 1, 9 do
     map("n", "<D-" .. i .. ">", function() goto_tab(i) end, { desc = "Tab " .. i .. "（Cmd/Win GUI）" })
   end
 end
+
+-- =============================================================
+-- Conform：手動格式化
+-- =============================================================
+map({ "n", "v" }, "<leader>fm", function()
+  require("conform").format { async = true, lsp_fallback = true }
+end, { desc = "Format file (conform)" })
+
+-- =============================================================
+-- Trouble：Diagnostics 面板
+-- =============================================================
+map("n", "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>",          { desc = "Trouble: workspace diagnostics" })
+map("n", "<leader>xd", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", { desc = "Trouble: buffer diagnostics" })
+map("n", "<leader>xq", "<cmd>Trouble qflist toggle<cr>",               { desc = "Trouble: quickfix list" })
+map("n", "<leader>xl", "<cmd>Trouble loclist toggle<cr>",              { desc = "Trouble: location list" })
+
+-- =============================================================
+-- TypeScript Tools：TS 特定操作（僅在 JS/TS 檔案生效）
+-- =============================================================
+map("n", "<leader>to", "<cmd>TSToolsOrganizeImports<cr>",    { desc = "TS: organize imports" })
+map("n", "<leader>ta", "<cmd>TSToolsAddMissingImports<cr>",  { desc = "TS: add missing imports" })
+map("n", "<leader>tu", "<cmd>TSToolsRemoveUnusedImports<cr>", { desc = "TS: remove unused imports" })
+map("n", "<leader>tf", "<cmd>TSToolsFixAll<cr>",             { desc = "TS: fix all" })
+map("n", "<leader>tr", "<cmd>TSToolsRenameFile<cr>",         { desc = "TS: rename file (update imports)" })
+
+-- =============================================================
+-- Package Info：package.json 套件資訊（在 package.json 內使用）
+-- =============================================================
+map("n", "<leader>ns", function() require("package-info").show() end,           { desc = "npm: show package versions" })
+map("n", "<leader>nh", function() require("package-info").hide() end,           { desc = "npm: hide package versions" })
+map("n", "<leader>nu", function() require("package-info").update() end,         { desc = "npm: update package" })
+map("n", "<leader>nd", function() require("package-info").delete() end,         { desc = "npm: delete package" })
+map("n", "<leader>ni", function() require("package-info").install() end,        { desc = "npm: install new package" })
+map("n", "<leader>nv", function() require("package-info").change_version() end, { desc = "npm: change package version" })
