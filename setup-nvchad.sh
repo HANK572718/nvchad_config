@@ -427,6 +427,7 @@ else
     "sysreport.sh"
     "setup_x11vnc.sh"
     "setup-display.sh"
+    "setup_ssh_server.sh"
   )
   SCRIPT_DESCS=(
     "帳號管理（建立使用者、設定群組、修復家目錄權限）"
@@ -435,6 +436,7 @@ else
     "系統報告（查看系統狀態與硬體資訊）"
     "VNC 遠端桌面（x11vnc + systemd，Jetson / Ubuntu）"
     "顯示設定（xorg.conf + 60Hz 修正，Jetson 系列）"
+    "SSH Server（安裝 openssh-server，開啟密碼登入）"
   )
 
   echo ""
