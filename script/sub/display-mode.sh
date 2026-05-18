@@ -2,17 +2,25 @@
 # display-mode.sh — 套用顯示模式（平台自適應）
 #
 # 行為：
-#   - Jetson：把目前 connected 的 output 強制設為 1920x1080@60Hz
-#             解決 Jetson Orin Nano 的 DP→HDMI 被動轉接器無法傳輸 >60Hz 訊號的問題
-#   - 桌機 (NVIDIA/AMD/Intel)：no-op，由驅動 + 桌面環境自動處理顯示模式
+#   - jetson-orin：把目前 connected 的 output 強制設為 1920x1080@60Hz
+#                  解決 Orin Nano 的 DP→HDMI 被動轉接器無法傳輸 >60Hz 訊號
+#   - 其他平台 (jetson-legacy / raspberry-pi / nvidia-desktop / amd / intel)：
+#                  no-op，由驅動 + 桌面環境自動處理
 #
 # 部署位置：/usr/local/bin/display-mode.sh
 # 原始碼：~/.config/nvim/script/sub/display-mode.sh
 
 detect_platform() {
-    if [ -f /etc/nv_tegra_release ]; then echo "jetson"; return; fi
-    if [ -r /proc/device-tree/model ] && grep -qiE 'jetson|tegra' /proc/device-tree/model 2>/dev/null; then
-        echo "jetson"; return
+    local model=""
+    if [ -r /proc/device-tree/model ]; then
+        model=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)
+    fi
+    case "$model" in
+        *Orin*|*orin*)               echo "jetson-orin"; return ;;
+        *Raspberry*|*raspberry*)     echo "raspberry-pi"; return ;;
+    esac
+    if [ -f /etc/nv_tegra_release ] || echo "$model" | grep -qiE 'jetson|tegra'; then
+        echo "jetson-legacy"; return
     fi
     echo "desktop"
 }
@@ -48,7 +56,7 @@ resolve_display() {
 
 PLATFORM=$(detect_platform)
 
-if [ "$PLATFORM" != "jetson" ]; then
+if [ "$PLATFORM" != "jetson-orin" ]; then
     echo "平台 ($PLATFORM)：未套用 mode override，由驅動自動處理"
     exit 0
 fi
