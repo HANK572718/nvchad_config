@@ -9,6 +9,7 @@
 #
 # 部署位置：/usr/local/bin/display-mode.sh
 # 原始碼：~/.config/nvim/script/sub/display-mode.sh
+# 文件：~/.config/nvim/docs/setup-screen.md
 
 detect_platform() {
     local model=""

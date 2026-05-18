@@ -14,6 +14,10 @@
 #            原因：wrapper 以 root 跑、目標 Xorg 由 gdm/user 擁有，
 #            X server 的 SHM 段只允許建立者那個 UID 存取，
 #            root attach 會被拒 (BadAccess on X_ShmAttach) 導致 x11vnc 直接退出。
+#
+# 部署位置：/usr/local/bin/x11vnc-wrapper.sh
+# 原始碼：~/.config/nvim/script/sub/x11vnc-wrapper.sh
+# 文件：~/.config/nvim/docs/setup-screen.md
 
 RFBAUTH="/etc/x11vnc/passwd"
 RFBPORT=5900

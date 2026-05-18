@@ -14,6 +14,8 @@
 #
 # 通常透過上層 setup-screen.sh 呼叫，亦可單獨執行：
 #   sudo bash ~/.config/nvim/script/sub/force-x11.sh
+#
+# 文件：~/.config/nvim/docs/setup-screen.md
 
 set -e
 

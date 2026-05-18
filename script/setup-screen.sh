@@ -26,9 +26,12 @@
 #   sudo bash setup-screen.sh --vnc              # 只裝 VNC
 #   sudo bash setup-screen.sh --all --reboot
 #   sudo bash setup-screen.sh --vnc --reset-vnc-password
+#       bash setup-screen.sh --status            # 顯示當前 X11/Wayland、VNC、平台
 #
 # 不帶參數時進入互動選單：
 #   sudo bash ~/.config/nvim/script/setup-screen.sh
+#
+# 文件：~/.config/nvim/docs/setup-screen.md
 
 set -e
 
@@ -60,6 +63,10 @@ banner() {
           x86 桌機 (NVIDIA / AMD / Intel)
 
 EOF
+}
+
+run_status() {
+    bash "$SUB_DIR/show-status.sh"
 }
 
 run_x11() {
@@ -188,12 +195,14 @@ usage() {
   -x, --x11                  只強制 X11
   -d, --display              只裝 display
   -v, --vnc                  只裝 VNC
+  -s, --status               顯示當前狀態（X11/Wayland、VNC、平台），不需 sudo
       --no-x11               搭配 --all 使用，跳過 X11 強制
       --reset-vnc-password   即使 /etc/x11vnc/passwd 已存在也重設
   -r, --reboot               執行完自動重開機
   -h, --help                 本說明
 
 支援平台：Jetson Orin、Jetson Legacy、Raspberry Pi、x86 桌機 (NVIDIA/AMD/Intel)
+文件：~/.config/nvim/docs/setup-screen.md
 EOF
 }
 
@@ -212,6 +221,7 @@ while [ $# -gt 0 ]; do
         -x|--x11)               DO_X11=1; EXPLICIT_CLI=1 ;;
         -d|--display)           DO_DISPLAY=1; EXPLICIT_CLI=1 ;;
         -v|--vnc)               DO_VNC=1; EXPLICIT_CLI=1 ;;
+        -s|--status)            run_status; exit 0 ;;
         --no-x11)               SKIP_X11=1 ;;
         --reset-vnc-password)   RESET_VNC_PASSWORD=1 ;;
         -r|--reboot)            DO_REBOOT=1 ;;

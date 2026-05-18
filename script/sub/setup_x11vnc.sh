@@ -8,6 +8,8 @@
 #
 # 環境變數（供上層批次模式傳入）：
 #   VNC_RESET_PASSWORD=1   即使密碼已存在也重設
+#
+# 文件：~/.config/nvim/docs/setup-screen.md
 
 set -e
 
