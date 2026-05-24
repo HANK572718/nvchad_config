@@ -8,6 +8,13 @@ map("n", ";", ":", { desc = "CMD enter command mode" })
 -- 在 Insert 模式下，按 jk 快速回到 Normal 模式（替代 <ESC>）
 map("i", "jk", "<ESC>")
 
+-- =============================================================
+-- 覆蓋 NvChad 預設的 terminal <C-x>（原綁定為「跳出 terminal 模式」）
+-- 改為「透傳 Ctrl+X 給終端內程式」，讓 Claude Code 等程式能收到 <C-x>
+-- 跳出 terminal 模式請改用內建的 <C-\><C-n>
+-- =============================================================
+map("t", "<C-x>", "<C-v><C-x>", { desc = "Send Ctrl-X to terminal program (e.g. Claude Code)" })
+
 -- Alt+i：tab-local 浮動終端，覆蓋 NvChad 預設的全域 "floatTerm"
 -- 原理：id 加入 tabpage handle，讓每個 tab 在 g.nvchad_terms 有獨立 entry
 map({ "n", "t" }, "<A-i>", function()
