@@ -82,7 +82,7 @@ detect_pkg_manager
 info "使用套件管理器：$PKG"
 $PKG_UPDATE
 
-PACKAGES=(git curl wget build-essential gcc make ripgrep libreadline-dev)
+PACKAGES=(git curl wget build-essential gcc make ripgrep libreadline-dev imagemagick)
 info "安裝系統套件..."
 $PKG_INSTALL "${PACKAGES[@]}"
 
