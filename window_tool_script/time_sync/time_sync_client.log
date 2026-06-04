@@ -1,0 +1,80 @@
+[2025-11-18 17:39:39] [Info] ========================================
+[2025-11-18 17:39:39] [Info] Starting Windows Time Client setup
+[2025-11-18 17:39:39] [Info] ========================================
+[2025-11-18 17:39:39] [Info] Target server: 192.168.168.105
+[2025-11-18 17:39:39] [Info] Sync interval: 60 seconds
+[2025-11-18 17:39:39] [Info] 
+[2025-11-18 17:39:39] [Info] Testing connectivity with server 192.168.168.105...
+[2025-11-18 17:39:49] [Warning] Warning: Unable to ping server 192.168.168.105
+[2025-11-18 17:39:49] [Warning] This may indicate network issues or server firewall blocking ICMP
+[2025-11-18 17:39:49] [Warning] Suggestions to check:
+[2025-11-18 17:39:49] [Warning]   1. Are both computers on the same network segment?
+[2025-11-18 17:39:49] [Warning]   2. Has setup_time_server.ps1 been run on the server?
+[2025-11-18 17:39:49] [Warning]   3. Is the network connection normal?
+[2025-11-18 17:39:49] [Warning] 
+[2025-11-18 17:39:49] [Warning] Continue with setup? (may fail)
+[2025-11-18 17:40:22] [Info] User cancelled operation
+[2025-11-18 18:00:35] [Info] ========================================
+[2025-11-18 18:00:35] [Info] Starting Windows Time Client setup
+[2025-11-18 18:00:35] [Info] ========================================
+[2025-11-18 18:00:35] [Info] Target server: 192.168.168.105
+[2025-11-18 18:00:35] [Info] Sync interval: 60 seconds
+[2025-11-18 18:00:35] [Info] 
+[2025-11-18 18:00:35] [Info] Testing connectivity with server 192.168.168.105...
+[2025-11-18 18:00:36] [Success] Successfully pinged server 192.168.168.105
+[2025-11-18 18:00:36] [Info] Stopping W32Time service...
+[2025-11-18 18:00:38] [Info] Configuring W32Time as NTP Client mode...
+[2025-11-18 18:00:38] [Info] Setting time server to: 192.168.168.105
+[2025-11-18 18:00:38] [Info] Setting sync interval to 60 seconds...
+[2025-11-18 18:00:38] [Info] Setting service to auto-start...
+[2025-11-18 18:00:38] [Info] Starting W32Time service...
+[2025-11-18 18:00:40] [Info] Re-registering time source...
+[2025-11-18 18:00:40] [Info] Forcing synchronization with server...
+[2025-11-18 18:00:40] [Warning] Sync command executed, result: 
+[2025-11-18 18:00:40] [Warning] Check status later using verify_time_sync.ps1
+[2025-11-18 18:00:40] [Info] 
+[2025-11-18 18:00:40] [Success] ========================================
+[2025-11-18 18:00:40] [Success] Windows Time Client setup completed!
+[2025-11-18 18:00:40] [Success] ========================================
+[2025-11-18 18:00:40] [Info] 
+[2025-11-18 18:00:40] [Info] Configuration summary:
+[2025-11-18 18:00:40] [Info]   Time server: 192.168.168.105
+[2025-11-18 18:00:40] [Info]   Sync interval: 60 seconds
+[2025-11-18 18:00:40] [Info]   Service status: Running
+[2025-11-18 18:00:40] [Info] 
+[2025-11-18 18:00:40] [Info] Running w32tm /query /status to check status...
+[2025-11-18 18:00:41] [Info] 
+[2025-11-18 18:00:41] [Success] Setup completed! This computer will sync with server every 60 seconds
+[2025-11-18 18:00:41] [Info] You can verify sync status using verify_time_sync.ps1
+[2025-11-18 19:32:23] [Info] ========================================
+[2025-11-18 19:32:23] [Info] Starting Windows Time Client setup
+[2025-11-18 19:32:23] [Info] ========================================
+[2025-11-18 19:32:23] [Info] Target server: 192.168.168.105
+[2025-11-18 19:32:23] [Info] Sync interval: 60 seconds
+[2025-11-18 19:32:23] [Info] 
+[2025-11-18 19:32:23] [Info] Testing connectivity with server 192.168.168.105...
+[2025-11-18 19:32:24] [Success] Successfully pinged server 192.168.168.105
+[2025-11-18 19:32:24] [Info] Stopping W32Time service...
+[2025-11-18 19:32:27] [Info] Configuring W32Time as NTP Client mode...
+[2025-11-18 19:32:27] [Info] Setting time server to: 192.168.168.105
+[2025-11-18 19:32:27] [Info] Setting sync interval to 60 seconds...
+[2025-11-18 19:32:27] [Info] Setting service to auto-start...
+[2025-11-18 19:32:27] [Info] Starting W32Time service...
+[2025-11-18 19:32:29] [Info] Re-registering time source...
+[2025-11-18 19:32:29] [Info] Forcing synchronization with server...
+[2025-11-18 19:32:29] [Warning] Sync command executed, result: 
+[2025-11-18 19:32:29] [Warning] Check status later using verify_time_sync.ps1
+[2025-11-18 19:32:29] [Info] 
+[2025-11-18 19:32:29] [Success] ========================================
+[2025-11-18 19:32:29] [Success] Windows Time Client setup completed!
+[2025-11-18 19:32:29] [Success] ========================================
+[2025-11-18 19:32:29] [Info] 
+[2025-11-18 19:32:29] [Info] Configuration summary:
+[2025-11-18 19:32:29] [Info]   Time server: 192.168.168.105
+[2025-11-18 19:32:29] [Info]   Sync interval: 60 seconds
+[2025-11-18 19:32:29] [Info]   Service status: Running
+[2025-11-18 19:32:29] [Info] 
+[2025-11-18 19:32:29] [Info] Running w32tm /query /status to check status...
+[2025-11-18 19:32:29] [Info] 
+[2025-11-18 19:32:29] [Success] Setup completed! This computer will sync with server every 60 seconds
+[2025-11-18 19:32:29] [Info] You can verify sync status using verify_time_sync.ps1

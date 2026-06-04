@@ -17,10 +17,11 @@ Write-Host "1. Create new account"
 Write-Host "2. Change existing account password"
 Write-Host "3. View all local accounts"
 Write-Host "4. Delete account"
-Write-Host "5. Exit"
+Write-Host "5. Manage account group membership"
+Write-Host "6. Exit"
 Write-Host ""
 
-$choice = Read-Host "Enter option (1-5)"
+$choice = Read-Host "Enter option (1-6)"
 
 switch ($choice) {
     "1" {
@@ -57,6 +58,23 @@ switch ($choice) {
             if ($addToRDP -eq "Y" -or $addToRDP -eq "y") {
                 Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
                 Write-Host "Added to Remote Desktop Users group" -ForegroundColor Green
+            }
+
+            $addToUsers = Read-Host "`nAllow this account to login locally (add to Users group)? (Y/N)"
+            if ($addToUsers -eq "Y" -or $addToUsers -eq "y") {
+                Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction Stop
+                Write-Host "Added to Users group - account will be visible on login screen" -ForegroundColor Green
+            } else {
+                Write-Host "Not added to Users group - account will only be accessible via Remote Desktop" -ForegroundColor Yellow
+            }
+
+            $addToAdmin = Read-Host "`nGrant administrator privileges (add to Administrators group)? (Y/N)"
+            if ($addToAdmin -eq "Y" -or $addToAdmin -eq "y") {
+                Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction Stop
+                Write-Host "Added to Administrators group - account has full system privileges" -ForegroundColor Magenta
+                Write-Host "WARNING: This account now has full administrative access!" -ForegroundColor Red
+            } else {
+                Write-Host "Not added to Administrators group - account has standard user privileges" -ForegroundColor Green
             }
 
             Write-Host "`n=== Account Information ===" -ForegroundColor Cyan
@@ -102,6 +120,7 @@ switch ($choice) {
             Write-Host "`n=== Account Information ===" -ForegroundColor Cyan
             Get-LocalUser -Name $username | Select-Object Name, Enabled, PasswordExpires, PasswordNeverExpires, LastLogon | Format-List
 
+            # Check and manage Remote Desktop Users group
             $inRDPGroup = Get-LocalGroupMember -Group "Remote Desktop Users" -ErrorAction SilentlyContinue | Where-Object {$_.Name -like "*$username"}
             if ($inRDPGroup) {
                 Write-Host "This account is already in Remote Desktop Users group" -ForegroundColor Green
@@ -110,6 +129,31 @@ switch ($choice) {
                 if ($addToRDP -eq "Y" -or $addToRDP -eq "y") {
                     Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
                     Write-Host "Added to Remote Desktop Users group" -ForegroundColor Green
+                }
+            }
+
+            # Check and manage Users group
+            $inUsersGroup = Get-LocalGroupMember -Group "Users" -ErrorAction SilentlyContinue | Where-Object {$_.Name -like "*$username"}
+            if ($inUsersGroup) {
+                Write-Host "This account is already in Users group" -ForegroundColor Green
+            } else {
+                $addToUsers = Read-Host "`nAllow this account to login locally (add to Users group)? (Y/N)"
+                if ($addToUsers -eq "Y" -or $addToUsers -eq "y") {
+                    Add-LocalGroupMember -Group "Users" -Member $username -ErrorAction Stop
+                    Write-Host "Added to Users group - account will be visible on login screen" -ForegroundColor Green
+                }
+            }
+
+            # Check and manage Administrators group
+            $inAdminGroup = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue | Where-Object {$_.Name -like "*$username"}
+            if ($inAdminGroup) {
+                Write-Host "This account is already in Administrators group" -ForegroundColor Magenta
+            } else {
+                $addToAdmin = Read-Host "`nGrant administrator privileges (add to Administrators group)? (Y/N)"
+                if ($addToAdmin -eq "Y" -or $addToAdmin -eq "y") {
+                    Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction Stop
+                    Write-Host "Added to Administrators group - account has full system privileges" -ForegroundColor Magenta
+                    Write-Host "WARNING: This account now has full administrative access!" -ForegroundColor Red
                 }
             }
 
@@ -276,6 +320,98 @@ switch ($choice) {
     }
 
     "5" {
+        Write-Host "`n=== Manage Account ===" -ForegroundColor Green
+        Write-Host "`nCurrent local accounts:" -ForegroundColor Yellow
+        Get-LocalUser | Select-Object Name, Enabled | Format-Table
+
+        $username = Read-Host "Enter username to manage"
+
+        $userExists = Get-LocalUser -Name $username -ErrorAction SilentlyContinue
+        if (-not $userExists) {
+            Write-Host "Error: Account '$username' does not exist!" -ForegroundColor Red
+            pause
+            exit
+        }
+
+        # --- Enable / Disable ---
+        $isEnabled = (Get-LocalUser -Name $username).Enabled
+        $enabledStatus = if ($isEnabled) { "ENABLED" } else { "DISABLED" }
+        $enabledColor  = if ($isEnabled) { "Green"   } else { "Red"     }
+        Write-Host "`nAccount status: $enabledStatus" -ForegroundColor $enabledColor
+
+        $toggleAction = if ($isEnabled) { "Disable" } else { "Enable" }
+        $toggleAnswer = Read-Host "$toggleAction this account? (Y/N, Enter to skip)"
+        if ($toggleAnswer -eq "Y" -or $toggleAnswer -eq "y") {
+            if ($isEnabled) {
+                Disable-LocalUser -Name $username
+                Write-Host "Account disabled" -ForegroundColor Red
+            } else {
+                Enable-LocalUser -Name $username
+                Write-Host "Account enabled" -ForegroundColor Green
+            }
+        }
+
+        # --- Group Membership ---
+        $managedGroups = @(
+            @{ Name = "Administrators";                  Color = "Magenta"; Desc = "Full system admin privileges" },
+            @{ Name = "Users";                           Color = "Green";   Desc = "Local GUI login" },
+            @{ Name = "Remote Desktop Users";            Color = "Cyan";    Desc = "RDP remote desktop login" },
+            @{ Name = "docker-users";                    Color = "Blue";    Desc = "Use Docker Desktop without admin" },
+            @{ Name = "Hyper-V Administrators";          Color = "Blue";    Desc = "Manage Hyper-V / WSL2 VMs" },
+            @{ Name = "Performance Monitor Users";       Color = "Gray";    Desc = "Read performance counters" },
+            @{ Name = "Event Log Readers";               Color = "Gray";    Desc = "Read Windows event logs" },
+            @{ Name = "Network Configuration Operators"; Color = "Gray";    Desc = "Change network settings" }
+        )
+
+        Write-Host "`n=== Current Group Membership for '$username' ===" -ForegroundColor Cyan
+        foreach ($g in $managedGroups) {
+            $groupExists = Get-LocalGroup -Name $g.Name -ErrorAction SilentlyContinue
+            if (-not $groupExists) { continue }
+
+            $isMember = (Get-LocalGroupMember -Group $g.Name -ErrorAction SilentlyContinue).Name -contains "$env:COMPUTERNAME\$username"
+            $status = if ($isMember) { "[IN]  " } else { "[OUT] " }
+            $statusColor = if ($isMember) { "Green" } else { "Gray" }
+            Write-Host "$status $($g.Name) - $($g.Desc)" -ForegroundColor $statusColor
+        }
+
+        Write-Host ""
+        foreach ($g in $managedGroups) {
+            $groupExists = Get-LocalGroup -Name $g.Name -ErrorAction SilentlyContinue
+            if (-not $groupExists) { continue }
+
+            $isMember = (Get-LocalGroupMember -Group $g.Name -ErrorAction SilentlyContinue).Name -contains "$env:COMPUTERNAME\$username"
+            $action = if ($isMember) { "Remove from" } else { "Add to" }
+            $answer = Read-Host "$action '$($g.Name)'? (Y/N, Enter to skip)"
+
+            if ($answer -eq "Y" -or $answer -eq "y") {
+                try {
+                    if ($isMember) {
+                        Remove-LocalGroupMember -Group $g.Name -Member $username -ErrorAction Stop
+                        Write-Host "Removed from $($g.Name)" -ForegroundColor Yellow
+                    } else {
+                        Add-LocalGroupMember -Group $g.Name -Member $username -ErrorAction Stop
+                        Write-Host "Added to $($g.Name)" -ForegroundColor $g.Color
+                    }
+                } catch {
+                    Write-Host "Failed: $($_.Exception.Message)" -ForegroundColor Red
+                }
+            }
+        }
+
+        Write-Host "`n=== Final Status for '$username' ===" -ForegroundColor Cyan
+        $finalEnabled = (Get-LocalUser -Name $username).Enabled
+        Write-Host "Account: $(if ($finalEnabled) { 'ENABLED' } else { 'DISABLED' })" -ForegroundColor $(if ($finalEnabled) { 'Green' } else { 'Red' })
+        $finalGroups = Get-LocalGroup | Where-Object {
+            (Get-LocalGroupMember -Group $_.Name -ErrorAction SilentlyContinue).Name -contains "$env:COMPUTERNAME\$username"
+        }
+        if ($finalGroups) {
+            $finalGroups | Select-Object Name, Description | Format-Table -AutoSize
+        } else {
+            Write-Host "This account does not belong to any groups" -ForegroundColor Gray
+        }
+    }
+
+    "6" {
         Write-Host "Goodbye!" -ForegroundColor Yellow
         exit
     }

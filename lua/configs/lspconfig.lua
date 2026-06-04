@@ -37,15 +37,87 @@ vim.lsp.config.pyright = {
       },
     },
   },
-  -- 每次新增設定時動態注入 Python 路徑，並顯示通知
-  on_new_config = function(config, root_dir)
-    local python_path = get_python_path(root_dir)
+  -- 在 LSP 啟動前注入 Python 路徑（nvim 0.11+ 原生 API）
+  before_init = function(_, config)
+    local root = config.root_dir or vim.fn.getcwd()
+    local python_path = get_python_path(root)
+    config.settings = config.settings or {}
+    config.settings.python = config.settings.python or {}
     config.settings.python.pythonPath = python_path
     vim.notify("Pyright using: " .. python_path, vim.log.levels.INFO)
+  end,
+  -- 啟動後再通知一次，確保 pyright 重新讀取設定
+  on_init = function(client)
+    client.notify("workspace/didChangeConfiguration", {
+      settings = client.config.settings,
+    })
   end,
 }
 
 -- 啟用 Pyright
 vim.lsp.enable("pyright")
+
+-- ── JavaScript / TypeScript 生態 ──────────────────────────────────────
+-- (typescript 本身由 typescript-tools.nvim 處理，這裡補其他 servers)
+
+-- ESLint LSP
+vim.lsp.config.eslint = {
+  root_markers = {
+    '.eslintrc', '.eslintrc.js', '.eslintrc.cjs',
+    '.eslintrc.json', 'eslint.config.js', 'eslint.config.ts',
+    'package.json', '.git',
+  },
+  settings = {
+    workingDirectory = { mode = 'auto' },
+    format = false,
+  },
+}
+vim.lsp.enable("eslint")
+
+-- HTML LSP
+vim.lsp.config.html = {
+  root_markers = { 'package.json', '.git' },
+}
+vim.lsp.enable("html")
+
+-- CSS / SCSS LSP
+vim.lsp.config.cssls = {
+  root_markers = { 'package.json', '.git' },
+  settings = {
+    css  = { validate = true },
+    scss = { validate = true },
+    less = { validate = true },
+  },
+}
+vim.lsp.enable("cssls")
+
+-- JSON LSP
+vim.lsp.config.jsonls = {
+  root_markers = { '.git', 'package.json' },
+  settings = {
+    json = { validate = { enable = true } },
+  },
+}
+vim.lsp.enable("jsonls")
+
+-- Tailwind CSS LSP
+vim.lsp.config.tailwindcss = {
+  root_markers = {
+    'tailwind.config.js', 'tailwind.config.ts',
+    'tailwind.config.cjs', 'package.json', '.git',
+  },
+}
+vim.lsp.enable("tailwindcss")
+
+-- Emmet（HTML/JSX 快速展開）
+vim.lsp.config.emmet_language_server = {
+  root_markers = { 'package.json', '.git' },
+  filetypes = {
+    "html", "css", "scss",
+    "javascript", "javascriptreact",
+    "typescript", "typescriptreact",
+  },
+}
+vim.lsp.enable("emmet_language_server")
 
 -- 更多 LSP 選項請參考：:h vim.lsp.config

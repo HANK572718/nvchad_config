@@ -1,0 +1,209 @@
+[2025-11-18 18:04:48] [Info] ========================================
+[2025-11-18 18:04:48] [Info] Windows Time Synchronization Status Verification
+[2025-11-18 18:04:48] [Info] Check time: 2025-11-18 18:04:48.762
+[2025-11-18 18:04:48] [Info] ========================================
+[2025-11-18 18:04:48] [Info] 
+[2025-11-18 18:04:48] [Info] [1] Checking W32Time service status
+[2025-11-18 18:04:48] [Success] ✓ Service status: Running
+[2025-11-18 18:04:48] [Info]   Startup type: Automatic
+[2025-11-18 18:04:48] [Info] 
+[2025-11-18 18:04:48] [Info] [2] Checking time source configuration
+[2025-11-18 18:04:48] [Success] ✓ Time source: 192.168.168.105,0x9
+[2025-11-18 18:04:48] [Success]   ✓ 192.168.168.105 - Connection normal
+[2025-11-18 18:04:48] [Info] 
+[2025-11-18 18:04:48] [Info] [3] Time synchronization status
+[2025-11-18 18:04:48] [Info]   Time source: 192.168.168.105,0x9
+[2025-11-18 18:04:48] [Info]   Stratum: Unknown
+[2025-11-18 18:04:48] [Info]   Last sync time: Unknown
+[2025-11-18 18:04:48] [Warning]   ✗ Not yet synchronized or sync failed
+[2025-11-18 18:04:48] [Info] 
+[2025-11-18 18:04:48] [Info] 
+[2025-11-18 18:04:48] [Info] ========================================
+[2025-11-18 18:04:48] [Success] Verification complete
+[2025-11-18 18:04:48] [Info] ========================================
+[2025-11-18 18:04:48] [Info] 
+[2025-11-18 18:04:48] [Info] Tip: Use -ShowDetails parameter to display more detailed information
+[2025-11-18 18:04:48] [Info] 
+[2025-11-18 18:28:13] [Info] ========================================
+[2025-11-18 18:28:13] [Info] Windows Time Synchronization Status Verification
+[2025-11-18 18:28:13] [Info] Check time: 2025-11-18 18:28:13.466
+[2025-11-18 18:28:13] [Info] ========================================
+[2025-11-18 18:28:13] [Info] 
+[2025-11-18 18:28:13] [Info] [1] Checking W32Time service status
+[2025-11-18 18:28:13] [Success] ✓ Service status: Running
+[2025-11-18 18:28:13] [Info]   Startup type: Automatic
+[2025-11-18 18:28:13] [Info] 
+[2025-11-18 18:28:13] [Info] [2] Checking time source configuration
+[2025-11-18 18:28:13] [Success] ✓ Time source: 192.168.168.105,0x9
+[2025-11-18 18:28:13] [Success]   ✓ 192.168.168.105 - Connection normal
+[2025-11-18 18:28:13] [Info] 
+[2025-11-18 18:28:13] [Info] [3] Time synchronization status
+[2025-11-18 18:28:13] [Info]   Time source: 192.168.168.105,0x9
+[2025-11-18 18:28:13] [Info]   Stratum: Unknown
+[2025-11-18 18:28:13] [Info]   Last sync time: Unknown
+[2025-11-18 18:28:13] [Warning]   ✗ Not yet synchronized or sync failed
+[2025-11-18 18:28:13] [Info] 
+[2025-11-18 18:28:13] [Info] 
+[2025-11-18 18:28:13] [Info] ========================================
+[2025-11-18 18:28:13] [Success] Verification complete
+[2025-11-18 18:28:13] [Info] ========================================
+[2025-11-18 18:28:13] [Info] 
+[2025-11-18 18:28:13] [Info] Tip: Use -ShowDetails parameter to display more detailed information
+[2025-11-18 18:28:13] [Info] 
+[2025-11-18 18:41:53] [Info] ========================================
+[2025-11-18 18:41:53] [Info] Windows Time Synchronization Status Verification
+[2025-11-18 18:41:53] [Info] Check time: 2025-11-18 18:41:53.128
+[2025-11-18 18:41:53] [Info] ========================================
+[2025-11-18 18:41:53] [Info] 
+[2025-11-18 18:41:53] [Info] [1] Checking W32Time service status
+[2025-11-18 18:41:53] [Success] ✓ Service status: Running
+[2025-11-18 18:41:53] [Info]   Startup type: Automatic
+[2025-11-18 18:41:53] [Info] 
+[2025-11-18 18:41:53] [Info] [2] Checking time source configuration
+[2025-11-18 18:41:53] [Success] ✓ Time source: 192.168.168.105,0x9
+[2025-11-18 18:41:53] [Success]   ✓ 192.168.168.105 - Connection normal
+[2025-11-18 18:41:53] [Info] 
+[2025-11-18 18:41:53] [Info] [3] Time synchronization status
+[2025-11-18 18:41:53] [Info]   Time source: 192.168.168.105,0x9
+[2025-11-18 18:41:53] [Info]   Stratum: Unknown
+[2025-11-18 18:41:53] [Info]   Last sync time: Unknown
+[2025-11-18 18:41:53] [Warning]   ✗ Not yet synchronized or sync failed
+[2025-11-18 18:41:53] [Info] 
+[2025-11-18 18:41:53] [Info] 
+[2025-11-18 18:41:53] [Info] ========================================
+[2025-11-18 18:41:53] [Success] Verification complete
+[2025-11-18 18:41:53] [Info] ========================================
+[2025-11-18 18:41:53] [Info] 
+[2025-11-18 18:41:53] [Info] Tip: Use -ShowDetails parameter to display more detailed information
+[2025-11-18 18:41:53] [Info] 
+[2025-11-18 18:44:35] [Info] ========================================
+[2025-11-18 18:44:35] [Info] Windows Time Synchronization Status Verification
+[2025-11-18 18:44:35] [Info] Check time: 2025-11-18 18:44:35.785
+[2025-11-18 18:44:35] [Info] ========================================
+[2025-11-18 18:44:35] [Info] 
+[2025-11-18 18:44:35] [Info] [1] Checking W32Time service status
+[2025-11-18 18:44:35] [Success] ✓ Service status: Running
+[2025-11-18 18:44:35] [Info]   Startup type: Automatic
+[2025-11-18 18:44:35] [Info] 
+[2025-11-18 18:44:35] [Info] [2] Checking time source configuration
+[2025-11-18 18:44:35] [Success] ✓ Time source: 192.168.168.105,0x9
+[2025-11-18 18:44:35] [Success]   ✓ 192.168.168.105 - Connection normal
+[2025-11-18 18:44:35] [Info] 
+[2025-11-18 18:44:35] [Info] [3] Time synchronization status
+[2025-11-18 18:44:35] [Info]   Time source: 192.168.168.105,0x9
+[2025-11-18 18:44:35] [Info]   Stratum: Unknown
+[2025-11-18 18:44:35] [Info]   Last sync time: Unknown
+[2025-11-18 18:44:35] [Warning]   ✗ Not yet synchronized or sync failed
+[2025-11-18 18:44:35] [Info] 
+[2025-11-18 18:44:35] [Info] 
+[2025-11-18 18:44:35] [Info] ========================================
+[2025-11-18 18:44:35] [Success] Verification complete
+[2025-11-18 18:44:35] [Info] ========================================
+[2025-11-18 18:44:35] [Info] 
+[2025-11-18 18:44:35] [Info] Tip: Use -ShowDetails parameter to display more detailed information
+[2025-11-18 18:44:35] [Info] 
+[2025-11-18 18:37:12] [Info] ========================================
+[2025-11-18 18:37:12] [Info] Windows Time Synchronization Status Verification
+[2025-11-18 18:37:12] [Info] Check time: 2025-11-18 18:37:12.632
+[2025-11-18 18:37:12] [Info] ========================================
+[2025-11-18 18:37:12] [Info] 
+[2025-11-18 18:37:12] [Info] [1] Checking W32Time service status
+[2025-11-18 18:37:12] [Success] ✓ Service status: Running
+[2025-11-18 18:37:12] [Info]   Startup type: Automatic
+[2025-11-18 18:37:12] [Info] 
+[2025-11-18 18:37:12] [Info] [2] Checking time source configuration
+[2025-11-18 18:37:12] [Success] ✓ Time source: 192.168.168.105,0x9
+[2025-11-18 18:37:12] [Success]   ✓ 192.168.168.105 - Connection normal
+[2025-11-18 18:37:12] [Info] 
+[2025-11-18 18:37:12] [Info] [3] Time synchronization status
+[2025-11-18 18:37:12] [Info]   Time source: 192.168.168.105,0x9
+[2025-11-18 18:37:12] [Info]   Stratum: Unknown
+[2025-11-18 18:37:12] [Info]   Last sync time: Unknown
+[2025-11-18 18:37:12] [Warning]   ✗ Not yet synchronized or sync failed
+[2025-11-18 18:37:12] [Info] 
+[2025-11-18 18:37:12] [Info] 
+[2025-11-18 18:37:12] [Info] ========================================
+[2025-11-18 18:37:12] [Success] Verification complete
+[2025-11-18 18:37:12] [Info] ========================================
+[2025-11-18 18:37:12] [Info] 
+[2025-11-18 18:37:12] [Info] Tip: Use -ShowDetails parameter to display more detailed information
+[2025-11-18 18:37:12] [Info] 
+[2025-11-18 19:02:28] [Info] ========================================
+[2025-11-18 19:02:28] [Info] Windows Time Synchronization Status Verification
+[2025-11-18 19:02:28] [Info] Check time: 2025-11-18 19:02:28.233
+[2025-11-18 19:02:28] [Info] ========================================
+[2025-11-18 19:02:28] [Info] 
+[2025-11-18 19:02:28] [Info] [1] Checking W32Time service status
+[2025-11-18 19:02:28] [Success] ✓ Service status: Running
+[2025-11-18 19:02:28] [Info]   Startup type: Automatic
+[2025-11-18 19:02:28] [Info] 
+[2025-11-18 19:02:28] [Info] [2] Checking time source configuration
+[2025-11-18 19:02:28] [Success] ✓ Time source: time.windows.com,0x9
+[2025-11-18 19:02:28] [Success]   ✓ time.windows.com - Connection normal
+[2025-11-18 19:02:28] [Info] 
+[2025-11-18 19:02:28] [Info] [3] Time synchronization status
+[2025-11-18 19:02:28] [Info]   Time source: time.windows.com,0x9
+[2025-11-18 19:02:28] [Info]   Stratum: Unknown
+[2025-11-18 19:02:28] [Info]   Last sync time: Unknown
+[2025-11-18 19:02:28] [Warning]   ✗ Not yet synchronized or sync failed
+[2025-11-18 19:02:28] [Info] 
+[2025-11-18 19:02:28] [Info] 
+[2025-11-18 19:02:28] [Info] ========================================
+[2025-11-18 19:02:28] [Success] Verification complete
+[2025-11-18 19:02:28] [Info] ========================================
+[2025-11-18 19:02:28] [Info] 
+[2025-11-18 19:02:28] [Info] Tip: Use -ShowDetails parameter to display more detailed information
+[2025-11-18 19:02:28] [Info] 
+[2025-11-18 19:02:36] [Info] ========================================
+[2025-11-18 19:02:36] [Info] Windows Time Synchronization Status Verification
+[2025-11-18 19:02:36] [Info] Check time: 2025-11-18 19:02:36.780
+[2025-11-18 19:02:36] [Info] ========================================
+[2025-11-18 19:02:36] [Info] 
+[2025-11-18 19:02:36] [Info] [1] Checking W32Time service status
+[2025-11-18 19:02:36] [Success] ✓ Service status: Running
+[2025-11-18 19:02:36] [Info]   Startup type: Automatic
+[2025-11-18 19:02:36] [Info] 
+[2025-11-18 19:02:36] [Info] [2] Checking time source configuration
+[2025-11-18 19:02:36] [Success] ✓ Time source: time.windows.com,0x9
+[2025-11-18 19:02:36] [Success]   ✓ time.windows.com - Connection normal
+[2025-11-18 19:02:36] [Info] 
+[2025-11-18 19:02:36] [Info] [3] Time synchronization status
+[2025-11-18 19:02:36] [Info]   Time source: time.windows.com,0x9
+[2025-11-18 19:02:36] [Info]   Stratum: Unknown
+[2025-11-18 19:02:36] [Info]   Last sync time: Unknown
+[2025-11-18 19:02:36] [Warning]   ✗ Not yet synchronized or sync failed
+[2025-11-18 19:02:36] [Info] 
+[2025-11-18 19:02:36] [Info] 
+[2025-11-18 19:02:36] [Info] ========================================
+[2025-11-18 19:02:36] [Success] Verification complete
+[2025-11-18 19:02:36] [Info] ========================================
+[2025-11-18 19:02:36] [Info] 
+[2025-11-18 19:02:36] [Info] Tip: Use -ShowDetails parameter to display more detailed information
+[2025-11-18 19:02:36] [Info] 
+[2025-11-18 19:07:57] [Info] ========================================
+[2025-11-18 19:07:57] [Info] Windows Time Synchronization Status Verification
+[2025-11-18 19:07:57] [Info] Check time: 2025-11-18 19:07:57.498
+[2025-11-18 19:07:57] [Info] ========================================
+[2025-11-18 19:07:57] [Info] 
+[2025-11-18 19:07:57] [Info] [1] Checking W32Time service status
+[2025-11-18 19:07:57] [Success] ✓ Service status: Running
+[2025-11-18 19:07:57] [Info]   Startup type: Automatic
+[2025-11-18 19:07:57] [Info] 
+[2025-11-18 19:07:57] [Info] [2] Checking time source configuration
+[2025-11-18 19:07:57] [Success] ✓ Time source: time.windows.com,0x9 time.google.com,0x9
+[2025-11-18 19:07:57] [Success]   ✓ time.windows.com - Connection normal
+[2025-11-18 19:07:57] [Success]   ✓ time.google.com - Connection normal
+[2025-11-18 19:07:57] [Info] 
+[2025-11-18 19:07:57] [Info] [3] Time synchronization status
+[2025-11-18 19:07:57] [Info]   Time source: time.google.com,0x9
+[2025-11-18 19:07:57] [Info]   Stratum: Unknown
+[2025-11-18 19:07:57] [Info]   Last sync time: Unknown
+[2025-11-18 19:07:57] [Warning]   ✗ Not yet synchronized or sync failed
+[2025-11-18 19:07:57] [Info] 
+[2025-11-18 19:07:57] [Info] 
+[2025-11-18 19:07:57] [Info] ========================================
+[2025-11-18 19:07:57] [Success] Verification complete
+[2025-11-18 19:07:57] [Info] ========================================
+[2025-11-18 19:07:57] [Info] 
+[2025-11-18 19:07:57] [Info] Tip: Use -ShowDetails parameter to display more detailed information
+[2025-11-18 19:07:57] [Info] 

@@ -9,6 +9,22 @@ map("n", ";", ":", { desc = "CMD enter command mode" })
 map("i", "jk", "<ESC>")
 
 -- =============================================================
+-- 覆蓋 NvChad 預設的 terminal <C-x>（原綁定為「跳出 terminal 模式」）
+-- 改為「透傳 Ctrl+X 給終端內程式」，讓 Claude Code 等程式能收到 <C-x>
+-- 跳出 terminal 模式請改用內建的 <C-\><C-n>
+-- =============================================================
+map("t", "<C-x>", "<C-v><C-x>", { desc = "Send Ctrl-X to terminal program (e.g. Claude Code)" })
+
+-- Alt+i：tab-local 浮動終端，覆蓋 NvChad 預設的全域 "floatTerm"
+-- 原理：id 加入 tabpage handle，讓每個 tab 在 g.nvchad_terms 有獨立 entry
+map({ "n", "t" }, "<A-i>", function()
+  require("nvchad.term").toggle {
+    pos = "float",
+    id  = "floatTerm_" .. vim.api.nvim_get_current_tabpage(),
+  }
+end, { desc = "terminal toggle float (tab-local)" })
+
+-- =============================================================
 -- Ctrl+U/D 滾動：insert / terminal mode 直接可用
 -- insert mode：<C-\><C-o> 執行一次 normal 指令後自動回 insert mode
 -- terminal mode：退出 terminal mode 後滾動（停在 N-TERMINAL）
@@ -48,6 +64,21 @@ end, { desc = "telescope live grep args (no gitignore) | 範例: foo -- -t py -g
 -- :tcd <path> 也可直接用，nvim-tree / terminal 會自動跟隨
 -- =============================================================
 map("n", "<leader>fP", "<cmd>Telescope projects<cr>", { desc = "Telescope 專案列表（tab-local cd）" })
+
+-- 設定 / 清除當前 tabpage 的自訂標籤（顯示在右上角 tab 列）
+-- 空白輸入 = 清除自訂標籤，恢復顯示 cwd basename
+map("n", "<leader>tR", function()
+  local ok, cur = pcall(vim.api.nvim_tabpage_get_var, 0, "tab_label")
+  vim.ui.input({ prompt = "Tab label (空=恢復 cwd): ", default = ok and cur or "" }, function(input)
+    if input == nil then return end
+    if input == "" then
+      pcall(vim.api.nvim_tabpage_del_var, 0, "tab_label")
+    else
+      vim.api.nvim_tabpage_set_var(0, "tab_label", input)
+    end
+    vim.cmd "redrawtabline"
+  end)
+end, { desc = "Tab：設定自訂標籤（空=清除）" })
 
 map("n", "<leader>cd", function()
   vim.ui.input({ prompt = "tcd → ", default = vim.fn.getcwd(-1, 0), completion = "dir" }, function(input)
@@ -201,3 +232,37 @@ for i = 1, 9 do
     map("n", "<D-" .. i .. ">", function() goto_tab(i) end, { desc = "Tab " .. i .. "（Cmd/Win GUI）" })
   end
 end
+
+-- =============================================================
+-- Conform：手動格式化
+-- =============================================================
+map({ "n", "v" }, "<leader>fm", function()
+  require("conform").format { async = true, lsp_fallback = true }
+end, { desc = "Format file (conform)" })
+
+-- =============================================================
+-- Trouble：Diagnostics 面板
+-- =============================================================
+map("n", "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>",          { desc = "Trouble: workspace diagnostics" })
+map("n", "<leader>xd", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", { desc = "Trouble: buffer diagnostics" })
+map("n", "<leader>xq", "<cmd>Trouble qflist toggle<cr>",               { desc = "Trouble: quickfix list" })
+map("n", "<leader>xl", "<cmd>Trouble loclist toggle<cr>",              { desc = "Trouble: location list" })
+
+-- =============================================================
+-- TypeScript Tools：TS 特定操作（僅在 JS/TS 檔案生效）
+-- =============================================================
+map("n", "<leader>to", "<cmd>TSToolsOrganizeImports<cr>",    { desc = "TS: organize imports" })
+map("n", "<leader>ta", "<cmd>TSToolsAddMissingImports<cr>",  { desc = "TS: add missing imports" })
+map("n", "<leader>tu", "<cmd>TSToolsRemoveUnusedImports<cr>", { desc = "TS: remove unused imports" })
+map("n", "<leader>tf", "<cmd>TSToolsFixAll<cr>",             { desc = "TS: fix all" })
+map("n", "<leader>tr", "<cmd>TSToolsRenameFile<cr>",         { desc = "TS: rename file (update imports)" })
+
+-- =============================================================
+-- Package Info：package.json 套件資訊（在 package.json 內使用）
+-- =============================================================
+map("n", "<leader>ns", function() require("package-info").show() end,           { desc = "npm: show package versions" })
+map("n", "<leader>nh", function() require("package-info").hide() end,           { desc = "npm: hide package versions" })
+map("n", "<leader>nu", function() require("package-info").update() end,         { desc = "npm: update package" })
+map("n", "<leader>nd", function() require("package-info").delete() end,         { desc = "npm: delete package" })
+map("n", "<leader>ni", function() require("package-info").install() end,        { desc = "npm: install new package" })
+map("n", "<leader>nv", function() require("package-info").change_version() end, { desc = "npm: change package version" })

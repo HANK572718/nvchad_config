@@ -106,15 +106,82 @@ return {
   -- test new blink
   -- { import = "nvchad.blink.lazyspec" },
 
-  -- {
-  -- 	"nvim-treesitter/nvim-treesitter",
-  -- 	opts = {
-  -- 		ensure_installed = {
-  -- 			"vim", "lua", "vimdoc",
-  --      "html", "css"
-  -- 		},
-  -- 	},
-  -- },
+  -- Treesitter：語法解析器（顏色高亮、程式碼折疊、結構導航）
+  {
+    "nvim-treesitter/nvim-treesitter",
+    opts = {
+      ensure_installed = {
+        -- 編輯 nvim 設定本身
+        "vim", "lua", "vimdoc", "luadoc", "query",
+        -- 主要工作語言
+        "python", "bash",
+        -- 常用標記/設定檔
+        "markdown", "markdown_inline", "json", "jsonc", "yaml", "toml",
+        -- Web 相關
+        "html", "css", "javascript", "typescript", "tsx", "jsdoc",
+        -- 其他
+        "dockerfile", "gitignore", "regex",
+      },
+      auto_install = true,
+      highlight = { enable = true },
+      indent    = { enable = true },
+    },
+  },
+
+  -- =============================================================
+  -- JavaScript / TypeScript / React 開發工具
+  -- =============================================================
+
+  -- TypeScript LSP（比原生 ts_ls 更快，支援 inlay hints / organize imports）
+  {
+    "pmizio/typescript-tools.nvim",
+    ft = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+    dependencies = { "nvim-lua/plenary.nvim", "neovim/nvim-lspconfig" },
+    opts = {
+      settings = {
+        tsserver_file_preferences = {
+          includeInlayParameterNameHints          = "literals",
+          includeInlayVariableTypeHints           = false,
+          includeInlayFunctionLikeReturnTypeHints = true,
+        },
+        expose_as_code_action = { "fix_all", "add_missing_imports", "remove_unused" },
+      },
+    },
+  },
+
+  -- JSX / HTML tag 自動關閉與同步重命名
+  {
+    "windwp/nvim-ts-autotag",
+    ft = {
+      "html", "javascript", "javascriptreact",
+      "typescript", "typescriptreact",
+    },
+    opts = {},
+  },
+
+  -- JSX 內 gc 注釋使用正確格式（{/* */} 而非 //）
+  {
+    "JoosepAlviste/nvim-ts-context-commentstring",
+    event = "VeryLazy",
+    opts = { enable_autocmd = false },
+  },
+
+  -- package.json 顯示套件版本資訊（<leader>ns 查版本，<leader>nu 更新）
+  {
+    "vuki656/package-info.nvim",
+    ft = "json",
+    dependencies = { "MunifTanjim/nui.nvim" },
+    config = function()
+      require("package-info").setup { package_manager = "npm" }
+    end,
+  },
+
+  -- 統一 diagnostics / references / quickfix 面板
+  {
+    "folke/trouble.nvim",
+    cmd = { "Trouble" },
+    opts = { focus = true },
+  },
 
   -- Image preview with custom Telescope + chafa (Windows-compatible)
   -- No additional plugins needed - uses built-in Telescope API

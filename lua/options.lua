@@ -8,6 +8,11 @@ if vim.fn.has("win32") == 1 then
   vim.opt.shellcmdflag = "-NoLogo -NonInteractive -Command"
   vim.opt.shellquote = ""
   vim.opt.shellxquote = ""
+
+  -- MSYS2 在 PATH 中提供了一個沒有 .exe 副檔名的 `cmd` shim（C:\msys64\usr\bin\cmd），
+  -- 會被 nvim-treesitter 的 cmd /C ... 子程序優先抓到並失敗。
+  -- 強制把 System32 放到 PATH 最前面，確保 cmd / where / icacls 等指向真正的 Windows 工具。
+  vim.env.PATH = "C:\\Windows\\System32;" .. (vim.env.PATH or "")
 end
 
 -- local o = vim.o
