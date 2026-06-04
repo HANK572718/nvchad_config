@@ -186,6 +186,11 @@ local function goto_tab(i)
   require("nvchad.tabufline").goto_buf(bufs[i])
 end
 
+-- 移動 buffer 順序（tabufline 上的位置）
+-- <A-S-h>/<A-S-l>：Alt+Shift+h/l 左右移動目前 buffer（<A-h> 已被 NvChad 水平 terminal 佔用）
+map("n", "<A-S-h>", function() require("nvchad.tabufline").move_buf(-1) end, { desc = "Buffer 左移" })
+map("n", "<A-S-l>", function() require("nvchad.tabufline").move_buf(1) end,  { desc = "Buffer 右移" })
+
 -- 綁定 Alt+1~9：normal / insert / terminal 三個 mode 均有效
 for i = 1, 9 do
   local desc = "Tab " .. i .. "（Alt）"
