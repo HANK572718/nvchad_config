@@ -107,8 +107,13 @@ return {
   -- { import = "nvchad.blink.lazyspec" },
 
   -- Treesitter：語法解析器（顏色高亮、程式碼折疊、結構導航）
+  -- 注意：必須釘在 master 分支。上游 2025 年把預設分支改為重寫版 main，
+  -- main 分支不支援 ensure_installed / highlight.enable 舊 API（會被靜默忽略，
+  -- 導致 parser 不安裝、無語法高亮），且需另裝 tree-sitter CLI。
   {
     "nvim-treesitter/nvim-treesitter",
+    branch = "master",
+    build = ":TSUpdate",
     opts = {
       ensure_installed = {
         -- 編輯 nvim 設定本身
