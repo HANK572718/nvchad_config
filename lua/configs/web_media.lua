@@ -8,11 +8,18 @@
 --   image_preview = 終端內快速翻圖
 --   web_media     = 瀏覽器看完整多媒體（含影片/互動）
 --
--- filebrowser binary：優先 PATH，退回 ~/.local/bin/filebrowser。
--- 設定資料庫固定於 ~/.config/filebrowser/filebrowser.db，首次使用會
--- 自動建立（auth=noauth 免登入 + 一個 admin user）；root / port 每次
--- 啟動由旗標指定。綁 0.0.0.0（區網可連），noauth 無認證，不信任的
--- 網路請用完即停（:WebMediaStop，離開 nvim 也會自動收掉）。
+-- filebrowser binary：優先 PATH（Windows 自動找 .exe），Linux/macOS 再
+-- 退回 ~/.local/bin/filebrowser。設定資料庫固定於
+-- ~/.config/filebrowser/filebrowser.db，首次使用會自動建立（auth=noauth
+-- 免登入 + 一個 admin user）；root / port 每次啟動由旗標指定。綁 0.0.0.0
+-- （區網可連），noauth 無認證，不信任的網路請用完即停（:WebMediaStop，
+-- 離開 nvim 也會自動收掉）。
+--
+-- 跨平台：本模組不呼叫任何平台限定的 shell 指令——抓區網 IP 用
+-- vim.uv.interface_addresses()、開瀏覽器用 vim.ui.open()、找空 port 用
+-- vim.uv。Windows / Linux(x86_64 與 aarch64) / macOS 共用同一份程式碼。
+-- 唯一平台差異是「下載對應的 filebrowser binary」（它是靜態連結的 Go
+-- 執行檔，無任何 runtime 依賴）。需求：Neovim ≥ 0.10、一個網頁瀏覽器。
 -- =============================================================
 
 local M = {}
@@ -39,6 +46,25 @@ end
 
 local function is_running()
   return state.job ~= nil and vim.fn.jobwait({ state.job }, 0)[1] == -1
+end
+
+--- 列出本機非 loopback 的 IPv4 位址。
+--- 用 libuv（vim.uv）查網卡，跨平台、不依賴 shell（避免 Linux 限定的
+--- `hostname -I`，Windows / macOS 無此旗標）。
+--- @return string[] IPv4 位址清單。
+local function lan_ipv4s()
+  local out = {}
+  local ok, addrs = pcall(vim.uv.interface_addresses)
+  if ok and addrs then
+    for _, list in pairs(addrs) do
+      for _, a in ipairs(list) do
+        if a.family == "inet" and not a.internal then
+          out[#out + 1] = a.ip
+        end
+      end
+    end
+  end
+  return out
 end
 
 --- 從 start 起找第一個真正空的 port。
@@ -82,11 +108,15 @@ function M.serve(dir, opts)
   -- 已有 server 在跑就先停掉，改服務新資料夾
   if is_running() then M.stop() end
 
-  -- 解析 filebrowser 執行檔：優先 PATH，退回 ~/.local/bin/filebrowser
+  -- 解析 filebrowser 執行檔（跨平台）：優先 PATH（Windows 會自動找 .exe），
+  -- Linux/macOS 再退回 ~/.local/bin/filebrowser
   local fb = vim.fn.exepath("filebrowser")
-  if fb == "" then fb = vim.fn.expand("~/.local/bin/filebrowser") end
-  if vim.fn.executable(fb) == 0 then
-    vim.notify("找不到 filebrowser（PATH 與 ~/.local/bin 都沒有）", vim.log.levels.ERROR)
+  if fb == "" and vim.fn.has("win32") == 0 then
+    local cand = vim.fn.expand("~/.local/bin/filebrowser")
+    if vim.fn.executable(cand) == 1 then fb = cand end
+  end
+  if fb == "" or vim.fn.executable(fb) == 0 then
+    vim.notify("找不到 filebrowser，請先安裝（見 WEB_MEDIA_GUIDE.md）", vim.log.levels.ERROR)
     return
   end
 
@@ -125,13 +155,8 @@ function M.serve(dir, opts)
 
   -- 綁 0.0.0.0：附上區網 IP，方便別台機器/手機連入
   local lan = ""
-  local ok, ips = pcall(vim.fn.systemlist, { "hostname", "-I" })
-  if ok and ips[1] then
-    for _, ip in ipairs(vim.split(ips[1], "%s+", { trimempty = true })) do
-      if ip:match("^%d+%.%d+%.%d+%.%d+$") then
-        lan = lan .. "\n→ http://" .. ip .. ":" .. port .. "  (區網)"
-      end
-    end
+  for _, ip in ipairs(lan_ipv4s()) do
+    lan = lan .. "\n→ http://" .. ip .. ":" .. port .. "  (區網)"
   end
   vim.notify("Serving " .. dir .. "\n→ " .. url .. lan, vim.log.levels.INFO)
 

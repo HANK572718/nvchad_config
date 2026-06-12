@@ -84,6 +84,43 @@ curl -fsSL https://raw.githubusercontent.com/filebrowser/filebrowser/master/scri
 
 ---
 
+## 跨平台支援
+
+**同一份 `web_media.lua` 在 Windows / Linux(x86_64 與 aarch64,如 Jetson) / macOS 通用,不需各平台分歧設定。** 模組刻意不呼叫任何平台限定的 shell 指令:
+
+| 工作 | 用什麼(跨平台) | 原本可能踩的雷 |
+|------|----------------|----------------|
+| 抓區網 IP | `vim.uv.interface_addresses()` | ❌ `hostname -I` 是 Linux 限定,Windows/macOS 無此旗標 |
+| 開瀏覽器 | `vim.ui.open()` | Windows 走 `start`/explorer、Linux 走 `xdg-open`、macOS 走 `open`,由 nvim 自動處理 |
+| 找空 port | `vim.uv`（bind + listen） | — |
+| 找執行檔 | `exepath()`，Windows 自動補 `.exe`；Linux 退回 `~/.local/bin` | ❌ 不可寫死 Linux 路徑 |
+
+### 不同硬體/OS 需要不同依賴嗎?
+
+**不需要額外依賴,唯一差異是下載對應的 filebrowser binary。** 原因:filebrowser 是**靜態連結的 Go 執行檔**——
+
+```text
+$ file filebrowser
+ELF 64-bit ... statically linked ...
+$ ldd filebrowser
+not a dynamic executable      # 零動態相依
+```
+
+所以:
+
+| 平台 / CPU | 程式碼 | 要裝的東西 |
+|-----------|--------|-----------|
+| Linux **x86_64** | 同一份 | `linux-amd64-filebrowser.tar.gz` |
+| Linux **aarch64**（Jetson / Pi） | 同一份 | `linux-arm64-filebrowser.tar.gz` |
+| **Windows** x86_64 | 同一份 | `windows-amd64-filebrowser.zip`（放 `filebrowser.exe` 到 PATH） |
+| **macOS** | 同一份 | `darwin-amd64` / `darwin-arm64` |
+
+- **沒有** glibc 版本、共用函式庫、或 CPU 指令集(AVX 等)的要求——換 distro / 換機器只要拿對架構的 binary。
+- 共同需求只有兩個:**Neovim ≥ 0.10**(`vim.uv` / `vim.ui.open`)與**一個網頁瀏覽器**。
+- 設定資料庫路徑 `~/.config/filebrowser/filebrowser.db` 在 Windows 會展開到使用者家目錄(`C:\Users\<你>\.config\...`),一樣可用。
+
+---
+
 ## 技術細節
 
 ### 配置文件位置
