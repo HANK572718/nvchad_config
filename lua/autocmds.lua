@@ -29,24 +29,52 @@ vim.api.nvim_create_autocmd("SessionLoadPost", {
 -- 成因：mksession 會先 badd 所有 buffer（此時還在 tab 1），再 tabnew 建其他 tab。
 --       NvChad tabufline 的 BufAdd autocmd 把每個新 buffer 塞進「當前 tab」的 vim.t.bufs，
 --       於是所有 buffer 都堆進 tab 1，其他 tab 只剩各自 window 顯示的那一個。
--- 修法：還原完成後，依「每個 tab 的 window 實際顯示哪些 buffer」重建各 tab 的 vim.t.bufs。
---       這只還原 mksession 真正記錄的資訊（被顯示的 buffer）；未顯示的 hidden buffer
---       本來就不在 session 檔裡，無法復原。
+-- 修法：還原完成後重建各 tab 的 vim.t.bufs，規則：
+--       某 buffer 留在某 tab 的清單中，若它「在該 tab 的 window 中顯示」
+--       或「原本就在該 tab 清單裡，且沒有在其他 tab 的 window 中顯示」。
+--       → tab 1 的堆積（屬於其他 tab、已在別 tab 顯示的 buffer）被移除；
+--         但同 tab 內未顯示的 hidden buffer（如第二個 :term、同 tab 第二個檔）會保留。
+--       這解決了純用 window 重建會「丟掉同 tab 隱藏 buffer」的問題
+--       （例如一個 tab 開兩個同名 :term pwsh 只剩一個）。
 -- =============================================================
 vim.api.nvim_create_autocmd("SessionLoadPost", {
   callback = function()
     vim.schedule(function()
+      -- 1) 統計每個 buffer 被「哪些 tab 的 window」顯示
+      local shown_in = {} -- buf -> { [tab]=true }
       for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
-        local seen, bufs = {}, {}
         for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
           local b = vim.api.nvim_win_get_buf(win)
-          if vim.fn.buflisted(b) == 1 and not seen[b] then
+          shown_in[b] = shown_in[b] or {}
+          shown_in[b][tab] = true
+        end
+      end
+
+      -- 2) 逐 tab 重建：留下「在本 tab 顯示」或「原本在本 tab 且未被其他 tab 顯示」的 buffer
+      for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+        local seen, bufs = {}, {}
+        local function consider(b)
+          if not (vim.api.nvim_buf_is_valid(b) and vim.fn.buflisted(b) == 1) then return end
+          if seen[b] then return end
+          local shown_here = shown_in[b] and shown_in[b][tab]
+          local shown_elsewhere = false
+          if shown_in[b] then
+            for t in pairs(shown_in[b]) do
+              if t ~= tab then shown_elsewhere = true break end
+            end
+          end
+          if shown_here or not shown_elsewhere then
             seen[b] = true
             bufs[#bufs + 1] = b
           end
         end
+        for _, b in ipairs(vim.t[tab].bufs or {}) do consider(b) end
+        for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+          consider(vim.api.nvim_win_get_buf(win))
+        end
         vim.t[tab].bufs = bufs
       end
+
       pcall(vim.cmd, "redrawtabline")
     end)
   end,
