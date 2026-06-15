@@ -25,13 +25,14 @@ return {
       end
 
       -- ── Tab-local 根目錄整合 ──────────────────────────────
-      -- :tcd 換目錄時，tree root 自動切換；切 buffer 時尊重該 buffer 所在 cwd
-      default_opts.sync_root_with_cwd = true
+      -- 已關閉自動跟隨 cwd / 自動切 root：避免誤判專案根目錄而自動移動 tree root。
+      -- 仍尊重 buffer 所在 cwd（手動 :tcd 後 tree 會反映），但不再「自動」跟著切換。
+      default_opts.sync_root_with_cwd = false
       default_opts.respect_buf_cwd    = true
       default_opts.update_focused_file = vim.tbl_deep_extend(
         "force",
         default_opts.update_focused_file or {},
-        { enable = true, update_root = true }
+        { enable = true, update_root = false }  -- 只高亮聚焦檔，不自動移動 tree root
       )
 
       return default_opts
@@ -307,7 +308,8 @@ return {
     dependencies = { "nvim-telescope/telescope.nvim" },
     config = function()
       require("project_nvim").setup {
-        detection_methods = { "lsp", "pattern" },
+        -- 只用 pattern 偵測（移除 "lsp"：LSP root_dir 對散檔常誤判，是自動誤切的主因）
+        detection_methods = { "pattern" },
         patterns = {
           ".git",
           "pyproject.toml",
@@ -317,9 +319,11 @@ return {
           "Makefile",
           "go.mod",
         },
-        scope_chdir   = "tab",   -- 關鍵：偵測到根目錄時用 :tcd 而非 :cd
-        silent_chdir  = true,    -- 自動切換不顯示訊息
-        manual_mode   = false,   -- 開檔時自動偵測 + 切換
+        scope_chdir   = "tab",   -- 選專案時用 :tcd 而非 :cd（picker 仍 tab-local 切換）
+        silent_chdir  = true,    -- 切換不顯示訊息
+        -- 關閉「開檔自動偵測 + 切換」：不再自動 tcd，避免誤判專案根目錄。
+        -- 手動切換仍可用：<leader>fP（Telescope projects）/ <leader>cd / <leader>tn / :tcd。
+        manual_mode   = true,
         show_hidden   = false,
       }
       -- 註冊 Telescope 擴充（pcall 避免 telescope 還沒載入時報錯）
