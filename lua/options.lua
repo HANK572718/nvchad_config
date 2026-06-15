@@ -1,6 +1,7 @@
 require "nvchad.options"
 
 -- add yours here!
+vim.opt.swapfile = false
 
 -- Shell 設定：Windows 用 PowerShell 7，Linux/Mac 用系統預設 shell
 if vim.fn.has("win32") == 1 then
