@@ -173,6 +173,30 @@ vim.api.nvim_create_user_command("TelescopeAnalyzeFolders", function()
   require("configs.telescope_debug").analyze_folders()
 end, { desc = "分析當前目錄下的資料夾" })
 
+-- =============================================================
+-- :BufRename — 自訂當前 buffer 在頂部 tabufline 的顯示名（不改真實檔名）
+-- 有參數：直接設定；無參數：跳出輸入框（預填目前名稱，空輸入=清除）
+-- 核心邏輯與持久化見 lua/configs/bufname.lua
+-- =============================================================
+vim.api.nvim_create_user_command("BufRename", function(opts)
+  local bufname = require "configs.bufname"
+  if opts.args ~= "" then
+    bufname.set_name(0, opts.args)
+  else
+    vim.ui.input({ prompt = "Buffer 顯示名 (空=清除): ", default = bufname.get_name(0) or "" }, function(input)
+      if input == nil then return end
+      if input == "" then
+        bufname.clear_name(0)
+      else
+        bufname.set_name(0, input)
+      end
+    end)
+  end
+end, { nargs = "?", desc = "Buffer：設定 tabufline 自訂顯示名（空=清除）" })
+
+-- <leader>br：跳出輸入框設定當前 buffer 顯示名（仿 <leader>tR tab-label 流程）
+map("n", "<leader>br", "<cmd>BufRename<cr>", { desc = "Buffer: set custom display name" })
+
 -- 圖片瀏覽器：用 Telescope + chafa 預覽圖片（<leader>fp）
 map("n", "<leader>fp", function()
   require("configs.image_preview").find_images()
@@ -221,6 +245,22 @@ end
 -- <A-S-h>/<A-S-l>：Alt+Shift+h/l 左右移動目前 buffer（<A-h> 已被 NvChad 水平 terminal 佔用）
 map("n", "<A-S-h>", function() require("nvchad.tabufline").move_buf(-1) end, { desc = "Buffer 左移" })
 map("n", "<A-S-l>", function() require("nvchad.tabufline").move_buf(1) end,  { desc = "Buffer 右移" })
+
+-- =============================================================
+-- :bd / :bd! 改走 NvChad close_buffer，避免刪掉唯一 buffer 時連 window/tab 一起關掉
+-- 原生 :bd 會「拋棄」顯示該 buffer 的所有 window；若那是 tab 唯一的 window，整個 tab 就被關掉。
+-- close_buffer() 會先把當前 window 切到 vim.t.bufs 的鄰居（或最後一個 buffer 時 enew），再 bd 舊 buffer，
+-- 所以 window/tab 不會被拋棄。close_buffer 內部用 confirm bd，有未存檔時仍會提示。
+-- =============================================================
+vim.api.nvim_create_user_command("Bd", function()
+  require("nvchad.tabufline").close_buffer()
+end, { bang = true, desc = "Buffer 關閉（保留 window/tab）" })
+
+-- 只在「整行剛好是 bd / bd!」時改寫，:bdelete foo / :bd 3 等仍走原生
+vim.cmd [[
+  cnoreabbrev <expr> bd  (getcmdtype() ==# ':' && getcmdline() ==# 'bd')  ? 'Bd'  : 'bd'
+  cnoreabbrev <expr> bd! (getcmdtype() ==# ':' && getcmdline() ==# 'bd!') ? 'Bd!' : 'bd!'
+]]
 
 -- 綁定 Alt+1~9：normal / insert / terminal 三個 mode 均有效
 for i = 1, 9 do
