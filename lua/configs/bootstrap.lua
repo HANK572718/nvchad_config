@@ -71,20 +71,15 @@ local function is_native_gcc(exe)
   return t ~= "" and not t:match("%-cygwin$") and not t:match("%-msys$")
 end
 
--- ============================================================================
--- 1) WINDOWS C 編譯器（為 nvim-treesitter 強制挑原生 gcc/clang）
--- ============================================================================
--- 資料驅動：{pat=glob, kind='gcc'|'clang'|'cl'|'zig'} 的有序候選表。
--- 新增工具鏈 = 加一列。gcc/clang 必須通過 -dumpmachine；cl/zig 免（不會是 cygwin）。
-local function win_cc_candidates()
+-- ---- 共用：MSYS2 安裝根（glob 全部；不存在就沒命中）。不寫死磁碟。----------
+-- 同時被 win_cc_candidates()（找原生 gcc/clang）與 search_roots()（找 rg/fd）取用，
+-- 確保兩個模組對「MSYS2 在哪」的認知是單一事實來源。env() 一律在呼叫當下求值，
+-- 不在檔案載入時固化。
+local function msys_roots()
   local LOCALAPPDATA = env("LOCALAPPDATA")
-  local PF           = env("ProgramFiles")
-  local PFX86        = env("ProgramFiles(x86)")
   local SCOOP        = env("SCOOP") or (HOME .. "/scoop")
   local SCOOP_G      = env("SCOOP_GLOBAL") or "C:/ProgramData/scoop"
-
-  -- MSYS2 安裝根（glob 全部；不存在就沒命中）。不寫死磁碟。
-  local msys_roots = {
+  return {
     "C:/msys64", "C:/msys32", "D:/msys64", "E:/msys64",
     LOCALAPPDATA and (LOCALAPPDATA .. "/scoop/apps/msys2/current"),
     SCOOP .. "/apps/msys2/current",
@@ -93,13 +88,25 @@ local function win_cc_candidates()
     env("USERPROFILE") and (env("USERPROFILE") .. "/msys64"),
     HOME .. "/msys64",
   }
+end
+
+-- ============================================================================
+-- 1) WINDOWS C 編譯器（為 nvim-treesitter 強制挑原生 gcc/clang）
+-- ============================================================================
+-- 資料驅動：{pat=glob, kind='gcc'|'clang'|'cl'|'zig'} 的有序候選表。
+-- 新增工具鏈 = 加一列。gcc/clang 必須通過 -dumpmachine；cl/zig 免（不會是 cygwin）。
+local function win_cc_candidates()
+  local PF           = env("ProgramFiles")
+  local PFX86        = env("ProgramFiles(x86)")
+  local SCOOP        = env("SCOOP") or (HOME .. "/scoop")
+  local SCOOP_G      = env("SCOOP_GLOBAL") or "C:/ProgramData/scoop"
 
   local C = {}
   local function add(pat, kind) if nz(pat) then C[#C + 1] = { pat = pat, kind = kind } end end
 
   -- MSYS2 原生工具鏈：ucrt64 > clang64 > mingw64 > mingw32。
-  -- 絕不用 %root%/usr/bin（那是 x86_64-pc-msys 子系統）。
-  for _, r in ipairs(msys_roots) do
+  -- 絕不用 %root%/usr/bin（那是 x86_64-pc-msys 子系統）。msys_roots() 共用自上方。
+  for _, r in ipairs(msys_roots()) do
     if nz(r) then
       add(r .. "/ucrt64/bin/gcc.exe", "gcc")
       add(r .. "/clang64/bin/clang.exe", "clang")
@@ -330,11 +337,133 @@ function M.setup_node()
   return node
 end
 
+-- ============================================================================
+-- 3) 搜尋工具 ripgrep / fd 上 PATH（telescope live_grep / find_files）
+-- ============================================================================
+-- 與 node/cc 同一類問題的第三個實例：工具二進位存在，但 nvim 繼承的 PATH 看不到
+--   → telescope 報「'ripgrep' is a required dependency」。最常見成因：
+--   winget 的 shim 目錄（%LOCALAPPDATA%/Microsoft/WinGet/Links）未進 nvim PATH、
+--   scoop shims 未繼承、SSH / session 隔離下 PATH 精簡。
+-- 設計鏡像 setup_node：解析出工具所在目錄 → prepend_path。但 rg/fd 是靜態原生 PE，
+--   絕不會是 cygwin 子系統 → 不需 -dumpmachine（那是 cc 專屬）；也不需「最新版勝」
+--   的版本排序（任一可用的 rg/fd 都行）→ 第一個命中即勝，最快。
+-- 全程靜默降級、被 M.setup() 的 pcall 包住，永遠不會中斷 nvim 啟動。
+-- 詳見 docs/RIPGREP_FD_PATH_SETUP.md。
+
+-- 候選根（有序；nil/空字串項會在迴圈中被 nz() 跳過）。不寫死使用者名/磁碟/版本。
+-- 扁平 shim/Links 目錄排在巢狀 Packages payload 之前 → 預期上 PATH 的位置優先，
+-- 且避免釘死某個過時的解壓版本目錄。
+local function search_roots()
+  local LOCALAPPDATA = env("LOCALAPPDATA")
+  local PF           = env("ProgramFiles")
+  local SCOOP        = env("SCOOP") or (HOME .. "/scoop")
+  local SCOOP_G      = env("SCOOP_GLOBAL") or "C:/ProgramData/scoop"
+  local CHOCO        = env("ChocolateyInstall")
+                       or (env("ProgramData") and (env("ProgramData") .. "/chocolatey"))
+                       or "C:/ProgramData/chocolatey"
+  local CARGO        = env("CARGO_HOME") or (HOME .. "/.cargo")
+
+  local r = {
+    -- winget：USER / MACHINE scope 的 shim 目錄（扁平 <tool>.exe，本機已驗證的修法）。
+    LOCALAPPDATA and (LOCALAPPDATA .. "/Microsoft/WinGet/Links"),
+    PF and (PF .. "/WinGet/Links"),
+    -- winget：shim 解析失敗（Dev Mode 關 / SSH symlink 無法跟隨）時的 payload fallback。
+    LOCALAPPDATA and (LOCALAPPDATA .. "/Microsoft/WinGet/Packages"),
+    PF and (PF .. "/WinGet/Packages"),
+  }
+  -- MSYS2（ucrt64/clang64/mingw64/bin）：專案文件 docs/MSYS2_SETUP_GUIDE.md 的官方裝法。
+  vim.list_extend(r, msys_roots())
+  vim.list_extend(r, {
+    SCOOP,                  -- scoop USER：%s/shims/<tool>.exe
+    SCOOP_G,                -- scoop GLOBAL（含 ProgramData fallback）
+    CHOCO,                  -- chocolatey：bin/ 與 lib/<pkg>/tools
+    CARGO,                  -- cargo install ripgrep / fd-find → <cargo>/bin
+    HOME .. "/.local/bin",  -- uv tool / pipx / binstall / 手動解壓
+  })
+  -- nix（Linux/macOS/Jetson）：非登入 SSH/headless 下 PATH 精簡，但 rg 在 /usr/bin。
+  if not IS_WIN then
+    vim.list_extend(r, { "/usr", "/usr/local", "/opt/homebrew", "/home/linuxbrew/.linuxbrew", "/snap" })
+  end
+  return r
+end
+
+-- 針對單一工具產生 glob 樣板（每個樣板只配一個工具，絕不用 {rg,fd} 大括號——
+-- vim.fn.glob 不展開 csh 大括號，會靜默回空 list）。%s = root。
+local function tool_globs(exe)
+  local e = exe .. EXE
+  local t = {
+    "%s/" .. e,                       -- 扁平：winget Links、cargo/bin 的上層、.local/bin
+    "%s/shims/" .. e,                 -- scoop shims（扁平，非 apps/*/current junction）
+    "%s/bin/" .. e,                   -- choco bin、cargo/bin、nix /usr/bin 等
+    "%s/ucrt64/bin/" .. e,            -- MSYS2 UCRT64
+    "%s/clang64/bin/" .. e,           -- MSYS2 CLANG64
+    "%s/mingw64/bin/" .. e,           -- MSYS2 MINGW64
+    "%s/*" .. exe .. "*/*/" .. e,     -- winget Packages 巢狀版本解壓目錄（內層 */ 必要；不釘 arch）
+    "%s/lib/" .. exe .. "/tools/" .. e,      -- choco payload（無 shim 時）
+    "%s/lib/" .. exe .. "/tools/*/" .. e,    -- choco payload 巢狀版本目錄
+  }
+  -- ripgrep 的 winget/choco package id 用 'ripgrep'，但二進位是 rg。補上以 ripgrep 命名的巢狀樣板。
+  if exe == "rg" then
+    t[#t + 1] = "%s/*ripgrep*/*/" .. e
+    t[#t + 1] = "%s/lib/ripgrep/tools/" .. e
+    t[#t + 1] = "%s/lib/ripgrep/tools/*/" .. e
+  end
+  return t
+end
+
+-- 解析單一工具的絕對路徑（forward slash）或 nil。
+--   names：有序候選命令名（Debian/Ubuntu/Jetson 把 fd 改名 fdfind → nix 多試一個）。
+--   第一個可用命中即勝（任一 rg/fd 都行，無需版本排序）。
+local function discover_tool(names, roots)
+  -- step 1（全平台短路）：OS resolver 已找得到就直接用——純 no-op，不 glob。
+  -- 這是一般 nix 與「桌面已設定好」的常見路徑。
+  for _, n in ipairs(names) do
+    if vim.fn.executable(n) == 1 then
+      local p = vim.fn.exepath(n)
+      if nz(p) then return fwd(p) end
+    end
+  end
+  -- step 2：glob 候選根。偏好扁平 Links/shims；直接 glob 真實巢狀 Packages 版本目錄
+  -- 而非穿越 'current' junction → junction-safe，故不需 SKIP_SEG。
+  for _, n in ipairs(names) do
+    local globs = tool_globs(n)
+    for _, root in ipairs(roots) do
+      if nz(root) then
+        for _, tmpl in ipairs(globs) do
+          for _, hit in ipairs(glob(tmpl:format(root))) do
+            if vim.fn.executable(hit) == 1 then return fwd(hit) end
+          end
+        end
+      end
+    end
+  end
+  return nil   -- 靜默降級
+end
+
+function M.setup_search_tools()
+  local roots = search_roots()
+  local found = {}
+  -- fd 在 Debian 系 nix 被改名 fdfind；Windows 一律是 fd。
+  local TOOLS = {
+    { key = "rg", names = { "rg" } },
+    { key = "fd", names = IS_WIN and { "fd" } or { "fd", "fdfind" } },
+  }
+  for _, t in ipairs(TOOLS) do
+    local p = discover_tool(t.names, roots)
+    if nz(p) then
+      prepend_path(fwd(vim.fn.fnamemodify(p, ":h")))  -- prepend_path 已做大小寫去重 → 同目錄只加一次
+      found[t.key] = p
+    end
+  end
+  return found   -- 例：{ rg = '.../WinGet/Links/rg.exe' }；fd 不存在 → 該鍵缺席
+end
+
 -- ---- 入口（每階段各自 pcall，任何例外都不會中斷 nvim 啟動）----------------
 function M.setup()
   local summary = { platform = M.platform }
   pcall(function() summary.cc = M.setup_compiler() end)
   pcall(function() summary.node = M.setup_node() end)
+  pcall(function() summary.search = M.setup_search_tools() end)
   M.last = summary
   return summary
 end

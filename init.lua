@@ -9,6 +9,7 @@ vim.g.mapleader = " "
 -- 包住絕不中斷啟動。詳見 lua/configs/bootstrap.lua 與：
 --   docs/TREESITTER_CYGWIN_CRASH.md（Cygwin parser 崩潰）
 --   docs/MARKDOWN_PREVIEW_NODE_SETUP.md（node junction / SSH）
+--   docs/RIPGREP_FD_PATH_SETUP.md（telescope rg/fd 上 PATH）
 pcall(function() require("configs.bootstrap").setup() end)
 
 -- 初始化 lazy.nvim（插件管理器）路徑

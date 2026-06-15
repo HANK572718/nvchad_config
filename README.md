@@ -65,6 +65,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/HANK572718/nvchad_config/mai
 | [`docs/MSYS2_SETUP_GUIDE.md`](docs/MSYS2_SETUP_GUIDE.md) | Windows MSYS2 環境建置，讓 Telescope 搜尋速度提升 15-30 倍 |
 | [`docs/X11VNC_SETUP.md`](docs/X11VNC_SETUP.md) | Jetson Orin Nano 遠端桌面（x11vnc + 顯示修正） |
 | [`docs/TELESCOPE_GITIGNORE_CONFIG.md`](docs/TELESCOPE_GITIGNORE_CONFIG.md) | Telescope 大型專案搜尋慢的根因分析與優化方案 |
+| [`docs/RIPGREP_FD_PATH_SETUP.md`](docs/RIPGREP_FD_PATH_SETUP.md) | Telescope 報 "ripgrep is required"：bootstrap 自動把 rg/fd 補上 PATH（機群可攜） |
 
 ---
 

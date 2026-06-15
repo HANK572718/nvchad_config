@@ -3,12 +3,18 @@
 
 local M = {}
 
--- Configuration（跨平台：Linux/Mac 使用系統 PATH，Windows 使用 MSYS2 路徑）
-local is_windows = vim.fn.has("win32") == 1
+-- Configuration（跨平台、零寫死：一律從 PATH 解析工具）
+-- chafa / fd 的所在目錄由 configs.bootstrap.setup_search_tools() 在啟動時補進 PATH
+-- （winget / msys2 / scoop / cargo …），這裡只認 PATH 上的工具，找不到就退回裸名
+-- （picker 啟動時自然失敗、不會崩潰）。詳見 docs/RIPGREP_FD_PATH_SETUP.md。
+local function tool(name)
+  if vim.fn.executable(name) == 1 then return vim.fn.exepath(name) end
+  return name  -- 裸名：仍不在 PATH 上時 picker 啟動失敗即可，不寫死任何磁碟/版本路徑
+end
 
 M.config = {
-  chafa_path = is_windows and "C:\\msys64_2\\ucrt64\\bin\\chafa.exe" or "chafa",
-  fd_path    = is_windows and "C:\\msys64_2\\ucrt64\\bin\\fd.exe"    or "fd",
+  chafa_path = tool("chafa"),
+  fd_path    = tool("fd"),
   image_extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "tiff", "tif" },
 }
 
