@@ -114,6 +114,19 @@ return {
     "nvim-treesitter/nvim-treesitter",
     branch = "master",
     build = ":TSUpdate",
+    init = function()
+      -- 雙重保險：把 bootstrap 偵測到的原生編譯器釘進 compilers 第一順位，
+      -- 避免 lazy 載入時序讓 $CC 沒被讀到、或 treesitter 預設清單挑到 Cygwin
+      -- gcc 產生不相容 parser 導致閃退。bootstrap 已做好平台偵測與零寫死探測。
+      -- 詳見 docs/TREESITTER_CYGWIN_CRASH.md 與 lua/configs/bootstrap.lua。
+      local ok, bootstrap = pcall(require, "configs.bootstrap")
+      if ok and vim.fn.has("win32") == 1 then
+        local cc = (bootstrap.last and bootstrap.last.cc) or vim.env.CC
+        if cc and vim.fn.executable(cc) == 1 then
+          require("nvim-treesitter.install").compilers = { cc }
+        end
+      end
+    end,
     opts = {
       ensure_installed = {
         -- 編輯 nvim 設定本身

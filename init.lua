@@ -3,6 +3,14 @@ vim.g.base46_cache = vim.fn.stdpath "data" .. "/base46/"
 -- <leader> 鍵設為空白鍵
 vim.g.mapleader = " "
 
+-- ── 機群可攜的啟動環境修復（編譯器 + node 上 PATH）────────────────────────
+-- 必須在載入 nvim-treesitter / markdown-preview 之前執行。
+-- 此模組零寫死、跨 Windows/Linux/ARM，工具不存在時靜默降級，且整段被 pcall
+-- 包住絕不中斷啟動。詳見 lua/configs/bootstrap.lua 與：
+--   docs/TREESITTER_CYGWIN_CRASH.md（Cygwin parser 崩潰）
+--   docs/MARKDOWN_PREVIEW_NODE_SETUP.md（node junction / SSH）
+pcall(function() require("configs.bootstrap").setup() end)
+
 -- 初始化 lazy.nvim（插件管理器）路徑
 local lazypath = vim.fn.stdpath "data" .. "/lazy/lazy.nvim"
 
