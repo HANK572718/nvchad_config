@@ -28,50 +28,56 @@ vim.api.nvim_create_autocmd("SessionLoadPost", {
 -- 修正：還原多 tab 專案時 buffer 全擠到第一個 tab 的問題
 -- 成因：mksession 會先 badd 所有 buffer（此時還在 tab 1），再 tabnew 建其他 tab。
 --       NvChad tabufline 的 BufAdd autocmd 把每個新 buffer 塞進「當前 tab」的 vim.t.bufs，
---       於是所有 buffer 都堆進 tab 1，其他 tab 只剩各自 window 顯示的那一個。
--- 修法：還原完成後重建各 tab 的 vim.t.bufs，規則：
---       某 buffer 留在某 tab 的清單中，若它「在該 tab 的 window 中顯示」
---       或「原本就在該 tab 清單裡，且沒有在其他 tab 的 window 中顯示」。
---       → tab 1 的堆積（屬於其他 tab、已在別 tab 顯示的 buffer）被移除；
---         但同 tab 內未顯示的 hidden buffer（如第二個 :term、同 tab 第二個檔）會保留。
---       這解決了純用 window 重建會「丟掉同 tab 隱藏 buffer」的問題
---       （例如一個 tab 開兩個同名 :term pwsh 只剩一個）。
+--       於是隱藏的 buffer（沒被任何 window 顯示者）都堆進 tab 1，跑到別的 tab 去。
+-- 關鍵：mksession 用 `balt`（window 的 alternate buffer，即 `#`）記錄每個 tab 的
+--       隱藏成員。所以「某 tab 真正擁有的 buffer」= 該 tab 各 window 顯示的 buffer
+--       ＋ 各 window 的 alternate buffer。純掃 window 顯示會漏掉 alternate（隱藏成員），
+--       導致隱藏 buffer 被誤判、留在 tab 1 或被丟掉。
+-- 修法：還原後依「window 顯示 + window alternate」算出每個 tab 的擁有集合 owned[tab]，
+--       再重建 vim.t.bufs：保留本 tab 既有清單中「屬於本 tab」或「不屬於任何其他 tab」者，
+--       並補上本 tab 擁有的全部。
+--       → 跨 tab 堆積被移到正確的 tab；同 tab 內隱藏 buffer（第二個 :term / 第二個檔）保留。
 -- =============================================================
 vim.api.nvim_create_autocmd("SessionLoadPost", {
   callback = function()
     vim.schedule(function()
-      -- 1) 統計每個 buffer 被「哪些 tab 的 window」顯示
-      local shown_in = {} -- buf -> { [tab]=true }
-      for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+      local tabs = vim.api.nvim_list_tabpages()
+
+      -- 1) 每個 tab 真正擁有的 buffer：window 顯示者 ＋ 各 window 的 alternate(#)
+      local owned = {} -- tab -> { [buf]=true }
+      for _, tab in ipairs(tabs) do
+        local s = {}
         for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
-          local b = vim.api.nvim_win_get_buf(win)
-          shown_in[b] = shown_in[b] or {}
-          shown_in[b][tab] = true
+          s[vim.api.nvim_win_get_buf(win)] = true
+          local ok, alt = pcall(vim.api.nvim_win_call, win, function()
+            return vim.fn.bufnr("#")
+          end)
+          if ok and alt and alt > 0 then s[alt] = true end
         end
+        owned[tab] = s
       end
 
-      -- 2) 逐 tab 重建：留下「在本 tab 顯示」或「原本在本 tab 且未被其他 tab 顯示」的 buffer
-      for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+      -- 2) 逐 tab 重建
+      for _, tab in ipairs(tabs) do
         local seen, bufs = {}, {}
-        local function consider(b)
-          if not (vim.api.nvim_buf_is_valid(b) and vim.fn.buflisted(b) == 1) then return end
-          if seen[b] then return end
-          local shown_here = shown_in[b] and shown_in[b][tab]
-          local shown_elsewhere = false
-          if shown_in[b] then
-            for t in pairs(shown_in[b]) do
-              if t ~= tab then shown_elsewhere = true break end
-            end
+        local function owned_elsewhere(b)
+          for _, t in ipairs(tabs) do
+            if t ~= tab and owned[t][b] then return true end
           end
-          if shown_here or not shown_elsewhere then
+          return false
+        end
+        local function add(b)
+          if vim.api.nvim_buf_is_valid(b) and vim.fn.buflisted(b) == 1 and not seen[b] then
             seen[b] = true
             bufs[#bufs + 1] = b
           end
         end
-        for _, b in ipairs(vim.t[tab].bufs or {}) do consider(b) end
-        for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
-          consider(vim.api.nvim_win_get_buf(win))
+        -- 既有清單：屬於本 tab，或不屬於任何其他 tab（避免把別 tab 的成員留下來堆積）
+        for _, b in ipairs(vim.t[tab].bufs or {}) do
+          if owned[tab][b] or not owned_elsewhere(b) then add(b) end
         end
+        -- 補上本 tab 擁有的全部（含 alternate 的隱藏成員）
+        for b in pairs(owned[tab]) do add(b) end
         vim.t[tab].bufs = bufs
       end
 
