@@ -92,15 +92,32 @@ flowchart TD
 已改為從 PATH 解析的 `tool(name)`（`executable` → `exepath`，找不到才退回裸名）。fd 所在目錄現由
 `setup_search_tools()` 統一補進 PATH，圖片瀏覽器與 Telescope 共用同一套發現機制。
 
-## 五、已知前提（不誇大）
+## 五、後續：統一到 MSYS2 單一來源（2026-06-16）
 
-- **本機目前沒有安裝 fd**（winget/scoop/cargo/choco/msys 都查無）。修好後 `fd` 解析為 nil → 靜默降級，
-  `find_files` 維持 Telescope 內建 `find` fallback（功能可用、較慢）。圖片瀏覽器在裝 fd 之前無法啟動，
-  這是**正確的靜默降級，不是回歸**。需要時裝：`winget install sharkdp.fd` 或
-  `pacman -S mingw-w64-ucrt-x86_64-fd`。
-- **chafa（圖片預覽渲染）不在 `setup_search_tools()` 範圍內**（該模組只負責 rg/fd），本機亦未安裝，
-  `chafa_path` 維持裸名 `chafa`，預覽器在 chafa 上 PATH 之前不會渲染。本次修正仍**移除了 chafa 的死路徑**
-  （死的寫死路徑本身就是零寫死規範的違反）。
+初次修好時 rg 來自 winget、fd/chafa 尚未安裝。之後將搜尋／預覽工具**全部統一到 MSYS2**，
+讓每台 Windows 機器可用一支腳本一鍵到位：
+
+- 用 [`window_tool_script/install-msys2.ps1`](../window_tool_script/install-msys2.ps1) 裝齊
+  `ripgrep fd gcc chafa bat fzf`（ucrt64 層）與 `make rsync`（msys 層），並一鍵裝 Node.js LTS。
+- **移除了 winget 的 ripgrep**（`winget uninstall BurntSushi.ripgrep.MSVC`），rg 改由
+  `C:\msys64\ucrt64\bin\rg.exe` 單一來源提供（避免雙來源版本漂移）。
+- `image_preview.lua` 的 `chafa`/`fd` 現由 MSYS2 ucrt64/bin 提供，圖片瀏覽器可用。
+
+實測（乾淨 PATH、winget rg 已移除）：`rg`、`fd`、`chafa` 的 `executable()` 全為 `1`，
+且來源皆為 `C:/msys64/ucrt64/bin`。
+
+### MSYS2 沒有的套件（實測，需另用 winget）
+
+| 工具 | MSYS2 狀態 | 替代安裝 |
+|------|-----------|---------|
+| `lazygit` | repo 無此套件 | `winget install JesseDuffield.lazygit` |
+| `git-delta` | 無（同名 `delta` 是壓縮函式庫，非 git diff 工具） | `winget install dandavison.delta` |
+
+### 為何 bootstrap 仍保留 winget/scoop/choco 候選根？
+
+`setup_search_tools()` 不假設工具一定來自 MSYS2 —— 候選表涵蓋所有常見來源是**刻意的機群可攜性**：
+別台機器可能用 winget/scoop/cargo 裝 rg/fd，nvim 一樣要找得到。本機統一到 MSYS2 只是「這台的選擇」，
+不是 bootstrap 的硬性假設。
 
 ## 六、驗證（headless，從乾淨 PATH）
 

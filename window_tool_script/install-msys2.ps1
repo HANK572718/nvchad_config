@@ -1,32 +1,54 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    MSYS2 一鍵安裝與環境配置腳本（Windows）
+    MSYS2 + Neovim 依賴一鍵安裝腳本（Windows）
 
 .DESCRIPTION
-    自動下載、靜默安裝 MSYS2，初始化 pacman，安裝常用開發工具，
-    並將 UCRT64 路徑寫入使用者環境變數、系統環境變數（供 SSH 遠端使用）
-    與 PowerShell Profile。
+    讓任何一台 Windows 機器一鍵裝好 NvChad 設定所需的一切：
+      1. 下載並靜默安裝 MSYS2（預設 C:\msys64）。
+      2. 初始化 pacman，安裝 nvim 所需的搜尋／建置／預覽工具
+         （ripgrep、fd、make、gcc、bat、fzf、chafa）。
+      3. 一鍵安裝 Node.js LTS（markdown-preview 執行期需要），偵測沒有 node
+         才裝，預設用 winget（不依賴 scoop；可用 -SkipNode 跳過）。
+      4. 移除舊的 winget ripgrep（若有），把 rg 統一到 MSYS2 單一來源
+         （可用 -KeepWingetRg 保留）。
+      5. 把 UCRT64／usr 路徑寫入 User PATH、System PATH（供 SSH 遠端）
+         與 PowerShell Profile。
+    工具的 PATH 探索由 lua/configs/bootstrap.lua 的 setup_search_tools()
+    在 nvim 啟動時負責，本腳本只確保二進位存在並寫入持久化 PATH。
+
+    註：lazygit 與 git-delta 在 MSYS2 repo 並無對應套件（git-delta 同名的
+    'delta' 是另一個壓縮函式庫，非 git diff 美化工具），故不納入。需要時
+    請用 winget（winget install JesseDuffield.lazygit / dandavison.delta）。
 
 .PARAMETER InstallDir
     MSYS2 安裝目錄，預設為 C:\msys64
 
 .PARAMETER Packages
-    額外要安裝的 MSYS2 套件（逗號分隔），預設安裝 fd, ripgrep, make, gcc, git
+    額外要安裝的 MSYS2 套件（逗號分隔），附加在預設清單之後。
 
 .PARAMETER SkipProfileUpdate
-    如果指定，跳過 PowerShell Profile 更新
+    如果指定，跳過 PowerShell Profile 更新。
+
+.PARAMETER SkipNode
+    如果指定，跳過 Node.js LTS 安裝（例如機器已自行管理 node 版本）。
+
+.PARAMETER KeepWingetRg
+    如果指定，保留既有的 winget ripgrep（預設會移除以統一到 MSYS2）。
 
 .EXAMPLE
     .\install-msys2.ps1
     .\install-msys2.ps1 -InstallDir "D:\msys64"
     .\install-msys2.ps1 -Packages "mingw-w64-ucrt-x86_64-cmake,mingw-w64-ucrt-x86_64-ninja"
+    .\install-msys2.ps1 -SkipNode -KeepWingetRg
 #>
 
 param(
     [string]$InstallDir = "C:\msys64",
     [string]$Packages = "",
-    [switch]$SkipProfileUpdate
+    [switch]$SkipProfileUpdate,
+    [switch]$SkipNode,
+    [switch]$KeepWingetRg
 )
 
 Set-StrictMode -Version Latest
@@ -39,18 +61,29 @@ $Ucrt64Bin = "$InstallDir\ucrt64\bin"
 $UsrBin = "$InstallDir\usr\bin"
 $BashExe = "$InstallDir\usr\bin\bash.exe"
 
-# UCRT64 packages (installed via: pacman -S --needed)
+# UCRT64 packages (installed via: pacman -S --needed). These land in
+# <InstallDir>\ucrt64\bin and are what NvChad's bootstrap.lua discovers.
+#   fd / ripgrep -> telescope find_files / live_grep (the original bug)
+#   gcc          -> nvim-treesitter native parser compiler (non-cygwin)
+#   chafa        -> image_preview.lua ASCII image preview
+#   bat / fzf    -> nice-to-have CLI tools used across the config
+# NOTE: GNU `make` (binary literally named make.exe) lives in the MSYS layer,
+#       not ucrt64 (the ucrt64 `make` package only ships mingw32-make.exe).
+#       git is intentionally omitted: Windows machines usually have Git for
+#       Windows already, and a second git on PATH causes bash-priority clashes.
 $DefaultPackages = @(
     "mingw-w64-ucrt-x86_64-fd"
     "mingw-w64-ucrt-x86_64-ripgrep"
-    "mingw-w64-ucrt-x86_64-make"
     "mingw-w64-ucrt-x86_64-gcc"
-    "mingw-w64-ucrt-x86_64-git"
+    "mingw-w64-ucrt-x86_64-chafa"
+    "mingw-w64-ucrt-x86_64-bat"
+    "mingw-w64-ucrt-x86_64-fzf"
 )
 
-# MSYS layer packages (rsync etc. live here, not in ucrt64)
+# MSYS layer packages (rsync, GNU make etc. live here, not in ucrt64).
 $MsysPackages = @(
     "rsync"
+    "make"
 )
 
 # --- Helper ---
@@ -247,6 +280,58 @@ if ($sshd -and $sshd.Status -eq 'Running') {
 }
 
 # =============================================================
+# Step 6.5: Node.js LTS (markdown-preview runtime; winget, no scoop needed)
+# =============================================================
+if (-not $SkipNode) {
+    Write-Step "Ensuring Node.js LTS is installed (for markdown-preview)..."
+
+    if (Get-Command node -ErrorAction SilentlyContinue) {
+        Write-Ok "node already present -> $((Get-Command node).Source)"
+    } elseif (Get-Command winget -ErrorAction SilentlyContinue) {
+        try {
+            winget install -e --id OpenJS.NodeJS.LTS `
+                --accept-source-agreements --accept-package-agreements
+            Write-Ok "Node.js LTS installed via winget. (Restart the terminal so node lands on PATH.)"
+        }
+        catch {
+            Write-Warn "winget node install failed: $_"
+            Write-Warn "Install Node.js LTS manually from https://nodejs.org then re-run, or use -SkipNode."
+        }
+    } else {
+        Write-Warn "Neither node nor winget found. Install Node.js LTS manually from https://nodejs.org"
+        Write-Warn "(markdown-preview needs node at runtime; everything else still works without it.)"
+    }
+}
+
+# =============================================================
+# Step 6.7: Unify ripgrep on MSYS2 (remove old winget ripgrep)
+# =============================================================
+# We just installed MSYS2 ripgrep at <InstallDir>\ucrt64\bin\rg.exe and put
+# that dir ahead of winget's Links dir on PATH. Remove the winget copy so rg
+# has a single source of truth (avoids version drift / PATH-order surprises).
+if (-not $KeepWingetRg) {
+    Write-Step "Unifying ripgrep on MSYS2 (removing winget copy if present)..."
+
+    $msysRg = "$Ucrt64Bin\rg.exe"
+    if (-not (Test-Path $msysRg)) {
+        Write-Warn "MSYS2 rg not found at $msysRg; keeping any winget rg as a safety net."
+    } elseif (Get-Command winget -ErrorAction SilentlyContinue) {
+        $hasWingetRg = winget list --id BurntSushi.ripgrep.MSVC 2>$null | Select-String "BurntSushi.ripgrep.MSVC"
+        if ($hasWingetRg) {
+            try {
+                winget uninstall --id BurntSushi.ripgrep.MSVC --silent 2>&1 | Out-Null
+                Write-Ok "Removed winget ripgrep; rg now served solely by MSYS2."
+            }
+            catch {
+                Write-Warn "Could not remove winget ripgrep: $_ (harmless; MSYS2 rg takes PATH priority)."
+            }
+        } else {
+            Write-Ok "No winget ripgrep installed; nothing to remove."
+        }
+    }
+}
+
+# =============================================================
 # Step 7: Update PowerShell Profile
 # =============================================================
 if (-not $SkipProfileUpdate) {
@@ -294,6 +379,9 @@ $checks = @(
     @{ Name = "fd";     Cmd = "fd" }
     @{ Name = "rg";     Cmd = "rg" }
     @{ Name = "make";   Cmd = "make" }
+    @{ Name = "chafa";  Cmd = "chafa" }
+    @{ Name = "bat";    Cmd = "bat" }
+    @{ Name = "fzf";    Cmd = "fzf" }
     @{ Name = "rsync";  Cmd = "rsync" }
 )
 

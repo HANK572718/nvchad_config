@@ -1,5 +1,21 @@
 # MSYS2 完整設定指南 - 解決 NvChad Telescope 問題
 
+> **一鍵安裝（推薦）**：直接跑 [`window_tool_script/install-msys2.ps1`](../window_tool_script/install-msys2.ps1)
+> （**以系統管理員開啟 PowerShell**）。它會下載並靜默安裝 MSYS2、裝齊 nvim 所需工具
+> （ripgrep、fd、make、gcc、bat、fzf、chafa）、一鍵裝 Node.js LTS（markdown-preview 用）、
+> 移除舊的 winget ripgrep 以統一到 MSYS2、並把路徑寫進 User／System PATH 與 Profile。
+>
+> ```powershell
+> # 以系統管理員身分開啟 PowerShell，切到本 repo 後：
+> .\window_tool_script\install-msys2.ps1
+> ```
+>
+> 跑完重開終端機即可。下方為手動步驟與背景說明。
+>
+> **MSYS2 沒有的套件（實測 2026-06-16，需另用 winget）**：`lazygit`
+> （`winget install JesseDuffield.lazygit`）、`git-delta`（`winget install dandavison.delta`；
+> MSYS2 內同名的 `delta` 是壓縮函式庫，非 git diff 美化工具）。
+
 ## 📦 步驟 1：安裝 MSYS2
 
 ### 使用 winget 安裝
