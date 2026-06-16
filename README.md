@@ -24,19 +24,28 @@ bash <(curl -fsSL https://raw.githubusercontent.com/HANK572718/nvchad_config/mai
 
 腳本會自動安裝 Neovim 0.11+、系統依賴、下載本設定，並同步所有插件。
 
-### Windows — 手動部署
+### Windows — 一鍵部署
 
-> Windows 的 Neovim 安裝涉及 GUI 精靈與 PATH 設定，需要手動操作
+> 以**系統管理員**開啟 PowerShell，貼上一行即可（公開 repo，走 git+HTTPS，不需金鑰）：
 
-1. 安裝 [Neovim 0.11+](https://github.com/neovim/neovim/releases/latest)（下載 `nvim-win64.msi`）
-2. 安裝 [Node.js LTS](https://nodejs.org)，完成後執行 `npm install -g yarn`
-3. 安裝 ripgrep：`winget install BurntSushi.ripgrep.MSVC`
-4. Clone 此 repo，將資料夾內容複製到 `%LOCALAPPDATA%\nvim\`
-5. 開啟 `nvim`，等待插件自動安裝完成
+```powershell
+irm https://raw.githubusercontent.com/HANK572718/nvchad_config/main/setup-nvchad.ps1 | iex
+```
 
-> **遇到 PATH 衝突或套件問題？** 考慮改用 [MSYS2](https://www.msys2.org/) 統一管理工具鏈，詳見 [docs/MSYS2_SETUP_GUIDE.md](docs/MSYS2_SETUP_GUIDE.md)。
+腳本會自動：用 winget 裝 git 與 Neovim → 以 HTTPS clone 本設定到 `%LOCALAPPDATA%\nvim`
+→ 安裝 MSYS2 工具鏈（ripgrep / fd / gcc / make / chafa / bat / fzf）與 Node.js LTS
+→ headless 同步所有插件。跑完重開終端機即可 `nvim`。
 
-詳細步驟見 [docs/setup_nvchad.md](docs/setup_nvchad.md)。
+> 想先看內容或傳參數（如指定分支）？先下載再跑：
+> ```powershell
+> irm https://raw.githubusercontent.com/HANK572718/nvchad_config/main/setup-nvchad.ps1 -OutFile setup-nvchad.ps1
+> .\setup-nvchad.ps1 -Branch main
+> ```
+>
+> 只想單獨裝／更新 MSYS2 工具鏈，可直接跑
+> [`window_tool_script/install-msys2.ps1`](window_tool_script/install-msys2.ps1)。
+> 詳見 [docs/MSYS2_SETUP_GUIDE.md](docs/MSYS2_SETUP_GUIDE.md) 與
+> [docs/setup_nvchad.md](docs/setup_nvchad.md)。
 
 ---
 

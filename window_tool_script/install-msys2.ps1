@@ -48,7 +48,8 @@ param(
     [string]$Packages = "",
     [switch]$SkipProfileUpdate,
     [switch]$SkipNode,
-    [switch]$KeepWingetRg
+    [switch]$KeepWingetRg,
+    [switch]$NonInteractive
 )
 
 Set-StrictMode -Version Latest
@@ -116,15 +117,25 @@ Write-Host "  MSYS2 Installer for Windows" -ForegroundColor Magenta
 Write-Host "  Install dir : $InstallDir" -ForegroundColor Magenta
 Write-Host "============================================" -ForegroundColor Magenta
 
+# When MSYS2 is already present we skip the download/install (Steps 1-2) but
+# STILL run the idempotent package/node/PATH steps so a re-run keeps everything
+# in sync. $NonInteractive (used by setup-nvchad.ps1) never prompts.
+$SkipInstall = $false
 if (Test-Path $BashExe) {
     Write-Warn "MSYS2 already installed at $InstallDir"
-    $answer = Read-Host "Reinstall? (y/N)"
-    if ($answer -ne 'y') {
-        Write-Host "Aborted." -ForegroundColor Yellow
-        exit 0
+    if ($NonInteractive) {
+        Write-Ok "Non-interactive: keeping existing MSYS2, continuing with package sync."
+        $SkipInstall = $true
+    } else {
+        $answer = Read-Host "Reinstall? (y/N)"
+        if ($answer -ne 'y') {
+            Write-Ok "Keeping existing MSYS2, continuing with package sync."
+            $SkipInstall = $true
+        }
     }
 }
 
+if (-not $SkipInstall) {
 # =============================================================
 # Step 1: Download installer
 # =============================================================
@@ -178,6 +189,9 @@ try {
 catch {
     Write-Fail "Installation failed: $_"
     exit 1
+}
+} else {
+    Write-Step "Skipping download/install (MSYS2 already present); syncing packages..."
 }
 
 # =============================================================
@@ -469,3 +483,7 @@ if ($allGood) {
 Write-Host "  Installed at : $InstallDir" -ForegroundColor DarkGray
 Write-Host "  Profile      : $PROFILE" -ForegroundColor DarkGray
 Write-Host ""
+
+# 明確收尾 exit code（成功 0 / 有工具缺失 1），避免繼承到 pacman/winget 等
+# 原生子命令的雜散 exit code，讓 setup-nvchad.ps1 能正確判斷成敗。
+if ($allGood) { exit 0 } else { exit 1 }
