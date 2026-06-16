@@ -202,7 +202,10 @@ local function create_smart_previewer()
 
       -- If it's an image, use chafa
       if is_image(path) then
-        local chafa_cmd = vim.fn.has("win32") == 1 and "C:\\msys64_2\\ucrt64\\bin\\chafa.exe" or "chafa"
+        -- 零寫死：從 PATH 解析 chafa（其目錄由 bootstrap.setup_search_tools /
+        -- MSYS2 ucrt64 在啟動時補上），找不到才退回裸名。詳見
+        -- docs/RIPGREP_FD_PATH_SETUP.md。
+        local chafa_cmd = vim.fn.executable("chafa") == 1 and vim.fn.exepath("chafa") or "chafa"
         return {
           chafa_cmd,
           "-f", "symbols",

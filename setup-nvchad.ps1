@@ -10,6 +10,7 @@
          （已存在則先備份；GitHub 為公開 repo，不需 SSH 金鑰）。
       3. 呼叫 clone 下來的 window_tool_script\install-msys2.ps1，安裝 MSYS2
          工具鏈（ripgrep / fd / gcc / make / chafa / bat / fzf）與 Node.js LTS。
+      3.5. 下載 filebrowser binary 到 ~/.local/bin（web_media.lua 的 <leader>fs）。
       4. 以 headless 模式跑 Lazy sync，安裝所有 plugin。
 
     可直接從 GitHub 一行執行（以「系統管理員」開啟 PowerShell）：
@@ -173,6 +174,61 @@ if (-not $SkipTools) {
     }
 } else {
     Write-Warn "Step 3 skipped (-SkipTools)."
+}
+
+# =============================================================
+# Step 3.5: filebrowser（web_media.lua 的 <leader>fs；MSYS2 無此套件）
+# =============================================================
+# 下載官方 Windows binary 到 ~/.local/bin，對齊 web_media.lua 的解析
+# （優先 PATH，Windows 也吃 ~/.local/bin）。已裝則跳過；失敗只警告不中斷。
+if (-not $SkipTools) {
+    Write-Step "Step 3.5: ensuring filebrowser (web media browser)"
+
+    if (Get-Command filebrowser -ErrorAction SilentlyContinue) {
+        Write-Ok "filebrowser already present -> $((Get-Command filebrowser).Source)"
+    } else {
+        $localBin = Join-Path $env:USERPROFILE ".local\bin"
+        $fbExe    = Join-Path $localBin "filebrowser.exe"
+        if (Test-Path $fbExe) {
+            Write-Ok "filebrowser already at $fbExe"
+        } else {
+            try {
+                # 依架構挑 asset（arm64 / amd64）。
+                $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
+                $asset = "windows-$arch-filebrowser.zip"
+                $url   = "https://github.com/filebrowser/filebrowser/releases/latest/download/$asset"
+                $zip   = Join-Path $env:TEMP $asset
+
+                New-Item -ItemType Directory -Force -Path $localBin | Out-Null
+                Write-Warn "Downloading filebrowser ($arch) from GitHub releases..."
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+
+                # zip 內含 filebrowser.exe；解到 ~/.local/bin。
+                Expand-Archive -Path $zip -DestinationPath $localBin -Force
+                Remove-Item $zip -Force -ErrorAction SilentlyContinue
+
+                if (Test-Path $fbExe) {
+                    Write-Ok "filebrowser installed to $fbExe"
+                    # 確保 ~/.local/bin 在 User PATH（web_media 在 Windows 也會吃 PATH）。
+                    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+                    if (($userPath -split ';') -notcontains $localBin) {
+                        [Environment]::SetEnvironmentVariable("Path", "$localBin;$userPath", "User")
+                        $env:Path = "$localBin;$env:Path"
+                        Write-Ok "Added $localBin to User PATH."
+                    }
+                } else {
+                    Write-Warn "filebrowser.exe not found after extract; install manually (see WEB_MEDIA_GUIDE.md)."
+                }
+            }
+            catch {
+                Write-Warn "filebrowser install failed: $_"
+                Write-Warn "It's optional (<leader>fs); install later per WEB_MEDIA_GUIDE.md."
+            }
+        }
+    }
+} else {
+    Write-Warn "Step 3.5 skipped (-SkipTools)."
 }
 
 # =============================================================
