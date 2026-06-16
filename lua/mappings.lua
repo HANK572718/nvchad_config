@@ -202,6 +202,21 @@ map("n", "<leader>fp", function()
   require("configs.image_preview").find_images()
 end, { desc = "瀏覽圖片（Image Browser）" })
 
+-- Web 多媒體瀏覽器：filebrowser + 瀏覽器（縮圖牆/圖片/影片/PDF）
+-- <leader>fs：服務當前 tab cwd       <leader>fS：輸入路徑
+-- 再按一次會停舊的、換新資料夾；離開 nvim 自動收掉。:WebMediaStop 手動停止
+map("n", "<leader>fs", function()
+  require("configs.web_media").serve_cwd()
+end, { desc = "Web 瀏覽多媒體（當前資料夾）" })
+
+map("n", "<leader>fS", function()
+  require("configs.web_media").serve_prompt()
+end, { desc = "Web 瀏覽多媒體（指定資料夾）" })
+
+vim.api.nvim_create_user_command("WebMediaStop", function()
+  require("configs.web_media").stop()
+end, { desc = "停止 web media server" })
+
 -- =============================================================
 -- DB UI 快捷鍵（SQLite / 資料庫瀏覽器）
 -- =============================================================

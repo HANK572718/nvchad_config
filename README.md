@@ -60,7 +60,8 @@ irm https://raw.githubusercontent.com/HANK572718/nvchad_config/main/setup-nvchad
 | **搜尋** | Telescope，Windows 下整合 MSYS2 fd 大幅提升速度 |
 | **格式化** | conform.nvim（black + isort） |
 | **狀態列** | 依視窗寬度動態隱藏模組，SSH 窄視窗也適用 |
-| **圖片預覽** | chafa ASCII 預覽，SSH 遠端與 Windows Terminal 皆可用 |
+| **圖片預覽** | chafa ASCII 預覽，SSH 遠端與 Windows Terminal 皆可用（[指南](IMAGE_PREVIEW_GUIDE.md)） |
+| **網頁多媒體** | filebrowser 把資料夾丟瀏覽器看縮圖/影片/PDF，`<leader>fs`，區網可連（[指南](WEB_MEDIA_GUIDE.md)） |
 
 ---
 
