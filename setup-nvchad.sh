@@ -82,7 +82,11 @@ detect_pkg_manager
 info "使用套件管理器：$PKG"
 $PKG_UPDATE
 
-PACKAGES=(git curl wget build-essential gcc make ripgrep libreadline-dev imagemagick)
+# 與 Windows install-msys2.ps1 對齊的工具集（見 README 跨平台依賴清單）：
+#   ripgrep/fd -> Telescope 搜尋；gcc/make/build-essential -> treesitter 編譯；
+#   chafa -> 圖片預覽；bat/fzf -> CLI 增益；rsync -> scp 替代品 / 同步。
+# 註：apt 的 fd 套件名為 fd-find（執行檔為 fdfind），bootstrap.lua 會自動探測。
+PACKAGES=(git curl wget build-essential gcc make ripgrep fd-find chafa bat fzf rsync libreadline-dev imagemagick)
 info "安裝系統套件..."
 $PKG_INSTALL "${PACKAGES[@]}"
 

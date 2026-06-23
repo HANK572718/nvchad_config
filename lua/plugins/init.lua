@@ -1,5 +1,6 @@
 return {
-  -- nvim-tree：覆寫 H 同時 toggle dotfiles + gitignore 兩個 filter
+  -- nvim-tree：覆寫 H 為切換 gitignore filter（NvChad 預設 dotfiles=false 已顯示，
+  -- 不需另外 toggle dotfiles；詳見下方 on_attach）。
   -- 並讓 tree root 跟隨 tab-local cwd（搭配 :tcd 與 project.nvim）
   {
     "nvim-tree/nvim-tree.lua",
