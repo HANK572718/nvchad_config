@@ -9,6 +9,23 @@ map("n", ";", ":", { desc = "CMD enter command mode" })
 map("i", "jk", "<ESC>")
 
 -- =============================================================
+-- 統一「往回刪一個詞」的按鍵（跨平台）
+-- 問題：Windows 習慣 Ctrl+Backspace 刪一個詞，Linux 桌面慣用 Alt+Backspace。
+--       而且不同終端機對這兩個 chord 送出的位元組不一致：
+--         - 多數終端機把 Ctrl+Backspace 送成 <C-h>（0x08），少數送 <C-BS>
+--         - Alt+Backspace 通常送 <M-BS>（ESC + DEL）
+--       導致「同一個動作，不同平台 / 終端機要按不同鍵、甚至沒反應」。
+-- 對策：在 nvim 層把所有變體都對到同一個動作 = <C-w>（insert mode 刪前一詞）。
+--       這樣不論本機是 Windows 還是 Linux、不論用哪個終端機，Ctrl+Backspace
+--       與 Alt+Backspace 都能「往回刪一個詞」，行為統一成 Linux 習慣。
+--       command-line mode 也一併處理（cmap），搜尋 / : 指令列同樣適用。
+-- =============================================================
+for _, key in ipairs({ "<C-BS>", "<C-h>", "<M-BS>" }) do
+  map("i", key, "<C-w>", { desc = "Insert: 往回刪一個詞（跨平台統一）" })
+  map("c", key, "<C-w>", { desc = "Cmdline: 往回刪一個詞（跨平台統一）" })
+end
+
+-- =============================================================
 -- 覆蓋 NvChad 預設的 terminal <C-x>（原綁定為「跳出 terminal 模式」）
 -- 改為「透傳 Ctrl+X 給終端內程式」，讓 Claude Code 等程式能收到 <C-x>
 -- 跳出 terminal 模式請改用內建的 <C-\><C-n>
@@ -218,6 +235,14 @@ vim.api.nvim_create_user_command("WebMediaStop", function()
 end, { desc = "停止 web media server" })
 
 -- =============================================================
+-- SSH 設定精靈（TUI）：:SshSetup 或 <leader>Sk
+-- 金鑰產生 / ~/.ssh/config 別名 / 部署公鑰到對方 / 測試免密碼連線。
+-- 不用記任何參數，全程選單 + 問答。見 lua/configs/ssh_tui.lua 與
+-- docs/SSH_CONFIG_GUIDE.md。
+-- =============================================================
+require("configs.ssh_tui").setup()
+
+-- =============================================================
 -- DB UI 快捷鍵（SQLite / 資料庫瀏覽器）
 -- =============================================================
 map("n", "<leader>Dt", "<cmd>DBUIToggle<cr>",          { desc = "DB Toggle UI" })
@@ -262,20 +287,89 @@ map("n", "<A-S-h>", function() require("nvchad.tabufline").move_buf(-1) end, { d
 map("n", "<A-S-l>", function() require("nvchad.tabufline").move_buf(1) end,  { desc = "Buffer 右移" })
 
 -- =============================================================
--- :bd / :bd! 改走 NvChad close_buffer，避免刪掉唯一 buffer 時連 window/tab 一起關掉
--- 原生 :bd 會「拋棄」顯示該 buffer 的所有 window；若那是 tab 唯一的 window，整個 tab 就被關掉。
--- close_buffer() 會先把當前 window 切到 vim.t.bufs 的鄰居（或最後一個 buffer 時 enew），再 bd 舊 buffer，
--- 所以 window/tab 不會被拋棄。close_buffer 內部用 confirm bd，有未存檔時仍會提示。
+-- :bd / :bd! / <A-w> 改走自製 close_current_buffer，避免兩個問題：
+--   (1) 原生 :bd 會「拋棄」顯示該 buffer 的 window；若那是 tab 唯一的 window，
+--       整個 tab 就被關掉。
+--   (2) <A-w> 需要按兩次：NvChad close_buffer() 的 bang 參數其實不存在
+--       （簽名只有 close_buffer(bufnr)），所以 :Bd! 之前根本沒 force——遇到
+--       未存檔 / terminal buffer 會走 `confirm bd` 卡在提示，第一次按等於沒關，
+--       要再按一次才生效。同時關掉最後一個 buffer 時它會 enew 一個 No Name，
+--       那個 No Name 因為「正顯示在 window」躲過清理，看起來也像沒關乾淨。
+--
+-- 對策：自己處理。先把當前 window 切到 vim.t.bufs 的鄰居（多個 buffer 時，
+--       絕不 enew →不再冒出多餘 No Name）；只有真的關到最後一個 buffer 才
+--       enew（此時 window 一定要顯示點東西，No Name 無法避免，屬正常）。
+--       接著用 nvim_buf_delete 帶 force=bang 刪掉目標 buffer：force 時直接丟棄
+--       未存檔變更、不彈 confirm，所以一次到位。最後 wipe_empty_noname 收掉
+--       任何沒在顯示的空 No Name 殘留。
 -- =============================================================
-vim.api.nvim_create_user_command("Bd", function()
-  require("nvchad.tabufline").close_buffer()
-end, { bang = true, desc = "Buffer 關閉（保留 window/tab）" })
+
+-- 清掉「空的 No Name」buffer：無檔名、未修改、空內容、且沒有顯示在任何 window。
+-- 「沒在顯示」這個條件刻意保留——正在看的空 buffer（含關到最後一個時必要的
+-- enew）不該被砍掉，否則 window 會沒東西可顯示。
+local function wipe_empty_noname()
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf)
+      and vim.fn.buflisted(buf) == 1
+      and vim.api.nvim_buf_get_name(buf) == ""
+      and vim.bo[buf].buftype == ""                        -- 排除 terminal / quickfix 等特殊 buffer
+      and not vim.bo[buf].modified
+      and vim.fn.bufwinid(buf) == -1                       -- 沒有顯示在任何 window
+      and vim.api.nvim_buf_line_count(buf) == 1
+      and vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] == ""  -- 內容為空
+    then
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end
+  end
+end
+
+-- 關閉指定（預設當前）buffer，保留 window/tab。force=true 時等同 :bd!（丟棄未存檔）。
+local function close_current_buffer(force)
+  local target = vim.api.nvim_get_current_buf()
+  local bufs = vim.t.bufs or {}
+
+  -- 找目標在 tabufline 清單中的位置
+  local idx
+  for i, b in ipairs(bufs) do
+    if b == target then idx = i break end
+  end
+
+  -- 先把當前 window 帶離 target：多個 buffer →切到鄰居（不 enew）；
+  -- 只剩這一個（或不在清單內）→ enew 一個空 buffer 撐住 window。
+  if idx and #bufs > 1 then
+    local neighbor = bufs[idx == #bufs and idx - 1 or idx + 1]
+    pcall(vim.cmd, "buffer " .. neighbor)
+  else
+    pcall(vim.cmd, "enew")
+  end
+
+  -- 真正刪掉 target。force 時 nvim_buf_delete 不彈 confirm、直接丟棄變更。
+  if vim.api.nvim_buf_is_valid(target) then
+    pcall(vim.api.nvim_buf_delete, target, { force = force == true, unload = false })
+  end
+
+  wipe_empty_noname()
+  pcall(vim.cmd, "redrawtabline")
+end
+
+vim.api.nvim_create_user_command("Bd", function(opts)
+  close_current_buffer(opts.bang)
+end, { bang = true, desc = "Buffer 關閉（保留 window/tab；! = 強制不儲存，順手清空 No Name）" })
 
 -- 只在「整行剛好是 bd / bd!」時改寫，:bdelete foo / :bd 3 等仍走原生
 vim.cmd [[
   cnoreabbrev <expr> bd  (getcmdtype() ==# ':' && getcmdline() ==# 'bd')  ? 'Bd'  : 'bd'
   cnoreabbrev <expr> bd! (getcmdtype() ==# ':' && getcmdline() ==# 'bd!') ? 'Bd!' : 'bd!'
 ]]
+
+-- <A-w>：等同 :bd! —— 強制關閉目前 buffer、不儲存（未存檔的變更直接丟棄）。
+-- 一次到位，不再需要按兩次。normal / insert / terminal 三個 mode 均有效。
+do
+  local force_close = function() close_current_buffer(true) end
+  map("n", "<A-w>", force_close, { desc = "Buffer 強制關閉（不儲存，等同 :bd!）" })
+  map("i", "<A-w>", function() vim.cmd("stopinsert"); force_close() end, { desc = "Buffer 強制關閉（不儲存，等同 :bd!）" })
+  map("t", "<A-w>", function() vim.cmd("stopinsert"); force_close() end, { desc = "Buffer 強制關閉（不儲存，等同 :bd!）" })
+end
 
 -- 綁定 Alt+1~9：normal / insert / terminal 三個 mode 均有效
 for i = 1, 9 do
