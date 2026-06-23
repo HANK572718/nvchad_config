@@ -94,6 +94,22 @@ function M.stop()
   state.job, state.port, state.root = nil, nil, nil
 end
 
+--- 清掉「孤兒」filebrowser 進程。
+--- filebrowser 的設定資料庫（bbolt）是單寫鎖：同時只有一個 filebrowser 能開它。
+--- 若上次 nvim 沒有正常結束（崩潰 / 被強制關 / job 脫離），VimLeavePre 的
+--- jobstop 不會跑，Windows 上那個 filebrowser.exe 就會殘留並一直鎖住 db。
+--- 之後每次 :WebMedia 啟動都因為開不了 db 而以 code 1 退出，看起來像「壞掉」。
+--- 這裡在啟動前先收掉本模組沒在追蹤的孤兒進程，讓 db 鎖釋放。
+--- 只殺「不是我們現在這個 job」的 filebrowser，避免誤殺剛啟動的自己。
+local function kill_orphan_filebrowsers()
+  if vim.fn.has("win32") == 1 then
+    -- taskkill 殺掉所有 filebrowser.exe（我們的 job 此時尚未啟動，安全）
+    vim.fn.system({ "taskkill", "/F", "/IM", "filebrowser.exe" })
+  else
+    vim.fn.system({ "pkill", "-f", "filebrowser" })
+  end
+end
+
 --- 對指定資料夾啟動 filebrowser 並開瀏覽器。
 --- @param dir string 資料夾路徑（會展開 ~ 與環境變數）。
 --- @param opts table|nil 可選：{ port = <int>, open = true }；port 預設自動找空的。
@@ -107,6 +123,11 @@ function M.serve(dir, opts)
 
   -- 已有 server 在跑就先停掉，改服務新資料夾
   if is_running() then M.stop() end
+
+  -- 收掉沒在追蹤的孤兒 filebrowser（它們會鎖住共用 db，導致新啟動失敗）。
+  -- 這是 Windows 上「web-media 突然不能用」最常見的原因：上次非正常結束殘留的
+  -- filebrowser.exe 還鎖著 ~/.config/filebrowser/filebrowser.db。
+  kill_orphan_filebrowsers()
 
   -- 解析 filebrowser 執行檔（跨平台）：優先 PATH（Windows 會自動找 .exe），
   -- Linux/macOS 再退回 ~/.local/bin/filebrowser
@@ -136,7 +157,10 @@ function M.serve(dir, opts)
         if code ~= 0 and code ~= 143 then
           vim.schedule(function()
             vim.notify(
-              "filebrowser 退出 (code " .. code .. ")，port " .. port .. " 可能被佔用",
+              "filebrowser 退出 (code " .. code .. ")。常見原因：\n"
+              .. "  1) 殘留的 filebrowser 鎖住 db（已自動嘗試清除，可再按一次）\n"
+              .. "  2) port " .. port .. " 被佔用\n"
+              .. "若持續失敗，刪除 ~/.config/filebrowser/filebrowser.db 後重試（會重建）",
               vim.log.levels.WARN
             )
           end)
