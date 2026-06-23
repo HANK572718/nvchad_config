@@ -3,6 +3,10 @@ require "nvchad.options"
 -- add yours here!
 vim.opt.swapfile = false
 
+-- 剪貼簿：跨平台 / 跨 SSH 複製到系統剪貼簿（OSC52）。詳見 configs/clipboard.lua
+-- 與 docs/CLIPBOARD_OSC52_GUIDE.md。SSH session 自動改走 OSC52，本機沿用原生。
+require("configs.clipboard").setup()
+
 -- Shell 設定：Windows 用 PowerShell 7，Linux/Mac 用系統預設 shell
 if vim.fn.has("win32") == 1 then
   vim.opt.shell = "pwsh"
