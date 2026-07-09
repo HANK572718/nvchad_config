@@ -1,0 +1,15 @@
+{
+  "devices": {
+    "pc50": { "ip": "192.168.2.50", "desc": "Windows PC .50" },
+    "jetson": { "ip": "192.168.2.56", "desc": "Jetson Nano .56" },
+    "wifi46": { "ip": "192.168.168.46", "desc": "WiFi PC .168.46" }
+  },
+  "forwards": [
+    { "name": "pc50-rdp",  "device": "pc50",   "local_port": 13350, "remote_port": 3389, "proto": "tcp", "desc": "PC50 遠端桌面 RDP", "group": "rdp" },
+    { "name": "pc50-vnc",  "device": "pc50",   "local_port": 15950, "remote_port": 5900, "proto": "tcp", "desc": "PC50 VNC",          "group": "vnc" },
+    { "name": "pc50-smb",  "device": "pc50",   "local_port": 14550, "remote_port": 445,  "proto": "tcp", "desc": "PC50 SMB",          "group": "smb" },
+    { "name": "jetson-ssh","device": "jetson", "local_port": 12256, "remote_port": 22,   "proto": "tcp", "desc": "Jetson SSH",        "group": "ssh" },
+    { "name": "jetson-vnc","device": "jetson", "local_port": 15956, "remote_port": 5900, "proto": "tcp", "desc": "Jetson VNC",        "group": "vnc" },
+    { "name": "wifi46-rdp","device": "wifi46", "local_port": 13346, "remote_port": 3389, "proto": "tcp", "desc": "WiFi46 RDP",        "group": "rdp" }
+  ]
+}

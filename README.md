@@ -130,6 +130,7 @@ irm https://raw.githubusercontent.com/HANK572718/nvchad_config/main/setup-nvchad
 | [`docs/SSH_CONFIG_GUIDE.md`](docs/SSH_CONFIG_GUIDE.md) | SSH 配置黃金圈 + 內建設定精靈 `:SshSetup`（小白免記參數產金鑰/部署/測試） |
 | [`docs/MULTIMEDIA_OVER_SSH.md`](docs/MULTIMEDIA_OVER_SSH.md) | 終端多媒體與 SSH 下瀏覽能力矩陣 + web-media 深入（含 Windows db-lock 坑） |
 | [`docs/TERMINAL_INTERACTIVITY_ECOSYSTEM.md`](docs/TERMINAL_INTERACTIVITY_ECOSYSTEM.md) | 終端編程互動性現成方案盤點（tmux+nvim / SSH / 多媒體 / 編輯器 UX，含 recommend/skip/already-have 判定） |
+| [`docs/DEVTOOLS_SETUP.md`](docs/DEVTOOLS_SETUP.md) | 系統工具跨機器複製：tmux（設定+tpm）與 jumpfwd/`jf`（socat+Tailscale port 轉發），一鍵 `setup-devtools.sh` 帶本機現況基準 |
 
 ---
 
@@ -145,3 +146,4 @@ irm https://raw.githubusercontent.com/HANK572718/nvchad_config/main/setup-nvchad
 | `net-manager.sh` | 網路介面設定 |
 | `perm-manager.sh` | 檔案與目錄權限管理 |
 | `sysreport.sh` | 系統狀態報告 |
+| `setup-devtools.sh` | tmux + jumpfwd(`jf`) 一鍵設定（跨發行版、冪等）；把本機終端多工與 port 轉發環境複製到其他 Linux（含 x86_64），詳見 [docs/DEVTOOLS_SETUP.md](docs/DEVTOOLS_SETUP.md) |

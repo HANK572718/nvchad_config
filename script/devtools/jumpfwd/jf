@@ -1,0 +1,990 @@
+#!/usr/bin/env bash
+# =====================================================
+# jf - JumpForward CLI 管理工具
+# 用於管理 socat Port 轉發，配合 Tailscale 使用
+# =====================================================
+
+set -euo pipefail
+
+# --- 路徑設定 ---
+CONFIG_DIR="$HOME/.config/jumpfwd"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+RUN_DIR="$HOME/.local/run/jumpfwd"
+LOG_DIR="$HOME/.local/log/jumpfwd"
+NOVNC_WEB="/usr/share/novnc"
+NOVNC_RUN_DIR="$HOME/.local/run/novnc"
+
+# --- 顏色 ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+# --- 初始化 ---
+mkdir -p "$RUN_DIR" "$LOG_DIR" "$NOVNC_RUN_DIR"
+
+# --- 工具函式 ---
+info()    { echo -e "${BLUE}ℹ${NC}  $*"; }
+ok()      { echo -e "${GREEN}✔${NC}  $*"; }
+warn()    { echo -e "${YELLOW}⚠${NC}  $*"; }
+err()     { echo -e "${RED}✘${NC}  $*" >&2; }
+die()     { err "$*"; exit 1; }
+header()  { echo -e "\n${BOLD}${CYAN}$*${NC}"; echo -e "${DIM}$(printf '─%.0s' {1..60})${NC}"; }
+
+require_jq() {
+    command -v jq &>/dev/null || die "需要安裝 jq：sudo apt install jq"
+    command -v socat &>/dev/null || die "需要安裝 socat：sudo apt install socat"
+    [[ -f "$CONFIG_FILE" ]] || die "找不到設定檔：$CONFIG_FILE"
+}
+
+# --- 取得轉發清單 ---
+get_forwards() {
+    # 可選 filter: group= 或 device=
+    local filter="${1:-}"
+    if [[ -z "$filter" ]]; then
+        jq -r '.forwards[] | .name' "$CONFIG_FILE"
+    elif [[ "$filter" == group=* ]]; then
+        local g="${filter#group=}"
+        jq -r --arg g "$g" '.forwards[] | select(.group==$g) | .name' "$CONFIG_FILE"
+    elif [[ "$filter" == device=* ]]; then
+        local d="${filter#device=}"
+        jq -r --arg d "$d" '.forwards[] | select(.device==$d) | .name' "$CONFIG_FILE"
+    fi
+}
+
+# --- 取得轉發詳細資訊 ---
+get_forward() {
+    local name="$1"
+    jq -e --arg n "$name" '.forwards[] | select(.name==$n)' "$CONFIG_FILE" 2>/dev/null \
+        || die "找不到轉發規則：$name"
+}
+
+get_device_ip() {
+    local device="$1"
+    jq -r --arg d "$device" '.devices[$d].ip // empty' "$CONFIG_FILE" \
+        || die "找不到設備：$device"
+}
+
+# --- PID 管理 ---
+pid_file() { echo "$RUN_DIR/$1.pid"; }
+log_file() { echo "$LOG_DIR/$1.log"; }
+
+is_running() {
+    local name="$1"
+    local pf; pf="$(pid_file "$name")"
+    [[ -f "$pf" ]] || return 1
+    local pid; pid="$(cat "$pf")"
+    kill -0 "$pid" 2>/dev/null
+}
+
+get_pid() {
+    local pf; pf="$(pid_file "$1")"
+    [[ -f "$pf" ]] && cat "$pf" || echo "-"
+}
+
+# --- 核心：啟動單一轉發 ---
+cmd_start_one() {
+    local name="$1"
+    local fwd; fwd="$(get_forward "$name")"
+
+    local device; device="$(echo "$fwd" | jq -r '.device')"
+    local ip; ip="$(get_device_ip "$device")"
+    local lport; lport="$(echo "$fwd" | jq -r '.local_port')"
+    local rport; rport="$(echo "$fwd" | jq -r '.remote_port')"
+    local proto; proto="$(echo "$fwd" | jq -r '.proto')"
+    local desc; desc="$(echo "$fwd" | jq -r '.desc')"
+
+    if is_running "$name"; then
+        warn "$name 已在運行中 (PID: $(get_pid "$name"))"
+        return 0
+    fi
+
+    local log; log="$(log_file "$name")"
+    local pf; pf="$(pid_file "$name")"
+
+    # 使用 socat 建立轉發
+    socat \
+        "${proto^^}-LISTEN:${lport},reuseaddr,fork" \
+        "${proto^^}:${ip}:${rport}" \
+        >> "$log" 2>&1 &
+
+    local pid=$!
+    echo "$pid" > "$pf"
+    sleep 0.3
+
+    if is_running "$name"; then
+        ok "${BOLD}$name${NC} 啟動成功  ${DIM}localhost:$lport → $ip:$rport${NC}  [$desc]"
+    else
+        rm -f "$pf"
+        err "$name 啟動失敗，請查看日誌：$log"
+        return 1
+    fi
+}
+
+# --- 核心：停止單一轉發 ---
+cmd_stop_one() {
+    local name="$1"
+    local pf; pf="$(pid_file "$name")"
+
+    if ! is_running "$name"; then
+        warn "$name 未在運行"
+        return 0
+    fi
+
+    local pid; pid="$(cat "$pf")"
+    kill "$pid" 2>/dev/null && rm -f "$pf"
+    ok "$name 已停止 (PID: $pid)"
+}
+
+# =====================================================
+# 指令：start
+# =====================================================
+cmd_start() {
+    require_jq
+    local target="${1:-}"
+
+    if [[ -z "$target" ]]; then
+        header "啟動全部轉發"
+        while IFS= read -r name; do
+            cmd_start_one "$name"
+        done < <(get_forwards)
+    elif [[ "$target" == group=* || "$target" == device=* ]]; then
+        header "啟動轉發 [$target]"
+        while IFS= read -r name; do
+            cmd_start_one "$name"
+        done < <(get_forwards "$target")
+    else
+        cmd_start_one "$target"
+    fi
+}
+
+# =====================================================
+# 指令：stop
+# =====================================================
+cmd_stop() {
+    require_jq
+    local target="${1:-}"
+
+    if [[ -z "$target" ]]; then
+        header "停止全部轉發"
+        while IFS= read -r name; do
+            cmd_stop_one "$name"
+        done < <(get_forwards)
+    elif [[ "$target" == group=* || "$target" == device=* ]]; then
+        header "停止轉發 [$target]"
+        while IFS= read -r name; do
+            cmd_stop_one "$name"
+        done < <(get_forwards "$target")
+    else
+        cmd_stop_one "$target"
+    fi
+}
+
+# =====================================================
+# 指令：restart
+# =====================================================
+cmd_restart() {
+    cmd_stop "${1:-}"
+    sleep 0.5
+    cmd_start "${1:-}"
+}
+
+# =====================================================
+# 指令：status
+# =====================================================
+cmd_status() {
+    require_jq
+    header "轉發狀態總覽"
+
+    local tailscale_ip
+    tailscale_ip="$(tailscale ip -4 2>/dev/null || echo '(Tailscale 未連線)')"
+
+    printf "${BOLD}%-22s %-8s %-10s %-22s %-25s${NC}\n" \
+        "名稱" "狀態" "PID" "本地端口 → 遠端" "說明"
+    echo -e "${DIM}$(printf '─%.0s' {1..90})${NC}"
+
+    while IFS= read -r name; do
+        local fwd; fwd="$(get_forward "$name")"
+        local device; device="$(echo "$fwd" | jq -r '.device')"
+        local ip; ip="$(get_device_ip "$device")"
+        local lport; lport="$(echo "$fwd" | jq -r '.local_port')"
+        local rport; rport="$(echo "$fwd" | jq -r '.remote_port')"
+        local desc; desc="$(echo "$fwd" | jq -r '.desc')"
+
+        if is_running "$name"; then
+            local pid; pid="$(get_pid "$name")"
+            printf "${GREEN}%-22s %-8s${NC} ${DIM}%-10s${NC} %-22s %-25s\n" \
+                "$name" "● 運行" "$pid" ":$lport → $ip:$rport" "$desc"
+        else
+            printf "${RED}%-22s %-8s${NC} ${DIM}%-10s${NC} %-22s %-25s\n" \
+                "$name" "○ 停止" "-" ":$lport → $ip:$rport" "$desc"
+        fi
+    done < <(get_forwards)
+
+    echo ""
+    info "Tailscale IP：${BOLD}$tailscale_ip${NC}"
+    info "設定檔：$CONFIG_FILE"
+}
+
+# =====================================================
+# 指令：list
+# =====================================================
+cmd_list() {
+    require_jq
+    header "已設定的轉發規則"
+
+    printf "${BOLD}%-22s %-10s %-8s %-8s %-8s %-8s %-25s${NC}\n" \
+        "名稱" "設備" "IP" "本地Port" "遠端Port" "協議" "說明"
+    echo -e "${DIM}$(printf '─%.0s' {1..95})${NC}"
+
+    jq -r '.forwards[] | [.name, .device, .local_port, .remote_port, .proto, .desc] | @tsv' "$CONFIG_FILE" \
+    | while IFS=$'\t' read -r name device lport rport proto desc; do
+        local ip; ip="$(get_device_ip "$device")"
+        printf "%-22s %-10s %-15s %-8s %-8s %-8s %-25s\n" \
+            "$name" "$device" "$ip" ":$lport" ":$rport" "$proto" "$desc"
+    done
+
+    echo ""
+    header "已設定的設備"
+    printf "${BOLD}%-12s %-18s %-30s${NC}\n" "名稱" "IP" "說明"
+    echo -e "${DIM}$(printf '─%.0s' {1..65})${NC}"
+    jq -r '.devices | to_entries[] | [.key, .value.ip, .value.desc] | @tsv' "$CONFIG_FILE" \
+    | while IFS=$'\t' read -r key ip desc; do
+        printf "%-12s %-18s %-30s\n" "$key" "$ip" "$desc"
+    done
+}
+
+# =====================================================
+# 指令：add - 互動式新增轉發
+# =====================================================
+cmd_add() {
+    require_jq
+    header "新增轉發規則"
+
+    # 顯示現有設備
+    echo "現有設備："
+    jq -r '.devices | to_entries[] | "  \(.key)\t\(.value.ip)\t\(.value.desc)"' "$CONFIG_FILE" \
+        | column -t -s $'\t'
+    echo ""
+
+    read -rp "設備名稱 (或輸入新 IP): " device_or_ip
+    local ip=""
+    local device=""
+
+    if jq -e --arg d "$device_or_ip" '.devices[$d]' "$CONFIG_FILE" &>/dev/null; then
+        device="$device_or_ip"
+        ip="$(get_device_ip "$device")"
+    else
+        # 新增設備
+        ip="$device_or_ip"
+        read -rp "設備別名 (英文): " device
+        read -rp "設備說明: " dev_desc
+        jq --arg k "$device" --arg ip "$ip" --arg d "$dev_desc" \
+            '.devices[$k] = {"ip": $ip, "desc": $d}' "$CONFIG_FILE" > /tmp/jf_tmp.json \
+            && mv /tmp/jf_tmp.json "$CONFIG_FILE"
+        ok "已新增設備 $device ($ip)"
+    fi
+
+    echo ""
+    echo "常見 Port：RDP=3389, VNC=5900, SMB=445, SSH=22, HTTP=80, HTTPS=443"
+    read -rp "遠端 Port: " rport
+    read -rp "本地 Port (留空自動分配): " lport
+    if [[ -z "$lport" ]]; then
+        lport="1$(echo "$ip" | cut -d. -f4)${rport: -2}"
+        # 確保不衝突
+        while ss -tlnp 2>/dev/null | grep -q ":$lport "; do
+            lport=$((lport + 1))
+        done
+    fi
+
+    read -rp "協議 [tcp]: " proto
+    proto="${proto:-tcp}"
+    read -rp "說明: " desc
+    read -rp "群組 (rdp/vnc/smb/ssh/web/其他): " group
+    group="${group:-misc}"
+
+    # 自動產生名稱
+    local name="${device}-${group}${rport}"
+    read -rp "規則名稱 [$name]: " input_name
+    name="${input_name:-$name}"
+
+    jq --argjson r "{
+        \"name\": \"$name\",
+        \"device\": \"$device\",
+        \"local_port\": $lport,
+        \"remote_port\": $rport,
+        \"proto\": \"$proto\",
+        \"desc\": \"$desc\",
+        \"group\": \"$group\"
+    }" '.forwards += [$r]' "$CONFIG_FILE" > /tmp/jf_tmp.json \
+        && mv /tmp/jf_tmp.json "$CONFIG_FILE"
+
+    ok "已新增規則：$name"
+    info "localhost:$lport → $ip:$rport ($proto)"
+
+    read -rp "現在啟動嗎？[Y/n]: " yn
+    [[ "${yn:-y}" =~ ^[Yy]$ ]] && cmd_start_one "$name"
+}
+
+# =====================================================
+# 指令：remove - 刪除轉發規則
+# =====================================================
+cmd_remove() {
+    require_jq
+    local name="${1:-}"
+    if [[ -z "$name" ]]; then
+        read -rp "輸入要刪除的規則名稱: " name
+    fi
+    is_running "$name" && cmd_stop_one "$name"
+    jq --arg n "$name" '.forwards = [.forwards[] | select(.name != $n)]' \
+        "$CONFIG_FILE" > /tmp/jf_tmp.json && mv /tmp/jf_tmp.json "$CONFIG_FILE"
+    ok "已刪除規則：$name"
+}
+
+# =====================================================
+# 指令：log - 查看日誌
+# =====================================================
+cmd_log() {
+    local name="${1:-}"
+    if [[ -z "$name" ]]; then
+        echo "可用日誌："
+        ls "$LOG_DIR"/*.log 2>/dev/null | xargs -I{} basename {} .log || echo "  (無)"
+        return
+    fi
+    local log; log="$(log_file "$name")"
+    [[ -f "$log" ]] || die "找不到日誌：$log"
+    tail -f "$log"
+}
+
+# =====================================================
+# 指令：install - 安裝 systemd 服務
+# =====================================================
+cmd_install() {
+    header "安裝 systemd 自動啟動服務"
+
+    local service_file="$HOME/.config/systemd/user/jumpfwd.service"
+    mkdir -p "$(dirname "$service_file")"
+
+    cat > "$service_file" << EOF
+[Unit]
+Description=JumpForward Port Forwarding Service
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=$HOME/.local/bin/jf start
+ExecStop=$HOME/.local/bin/jf stop
+Restart=on-failure
+RestartSec=5s
+StandardOutput=append:$LOG_DIR/service.log
+StandardError=append:$LOG_DIR/service.log
+
+[Install]
+WantedBy=default.target
+EOF
+
+    systemctl --user daemon-reload
+    systemctl --user enable jumpfwd.service
+    ok "已安裝 systemd user service"
+    info "開機後將自動啟動所有轉發規則"
+    info "控制指令："
+    echo "  systemctl --user start jumpfwd"
+    echo "  systemctl --user stop jumpfwd"
+    echo "  systemctl --user status jumpfwd"
+}
+
+# =====================================================
+# 指令：uninstall - 移除 systemd 服務
+# =====================================================
+cmd_uninstall() {
+    systemctl --user disable --now jumpfwd.service 2>/dev/null || true
+    rm -f "$HOME/.config/systemd/user/jumpfwd.service"
+    systemctl --user daemon-reload
+    ok "已移除 systemd service"
+}
+
+# =====================================================
+# 指令：menu - 互動式選單
+# =====================================================
+cmd_menu() {
+    require_jq
+    while true; do
+        clear
+        echo -e "${BOLD}${CYAN}"
+        echo "  ╔══════════════════════════════════════╗"
+        echo "  ║     JumpForward 轉發管理選單          ║"
+        echo "  ╚══════════════════════════════════════╝${NC}"
+        echo ""
+
+        # 顯示快速狀態
+        local running=0 total=0
+        while IFS= read -r name; do
+            total=$((total + 1))
+            is_running "$name" && running=$((running + 1))
+        done < <(get_forwards)
+
+        echo -e "  狀態：${GREEN}$running${NC}/${BOLD}$total${NC} 條轉發運行中"
+        local ts_ip; ts_ip="$(tailscale ip -4 2>/dev/null || echo '未連線')"
+        echo -e "  Tailscale：${CYAN}$ts_ip${NC}"
+        echo ""
+        echo "  ─── 基本操作 ──────────────────────────"
+        echo "  1) 查看狀態"
+        echo "  2) 啟動全部"
+        echo "  3) 停止全部"
+        echo "  4) 重啟全部"
+        echo "  ─── 單一控制 ──────────────────────────"
+        echo "  5) 啟動指定規則"
+        echo "  6) 停止指定規則"
+        echo "  ─── 群組控制 ──────────────────────────"
+        echo "  7) 啟動 RDP 群組"
+        echo "  8) 啟動 VNC 群組"
+        echo "  9) 啟動 SMB 群組"
+        echo "  w) 啟動 Web 群組"
+        echo "  ─── noVNC ─────────────────────────────"
+        echo "  v) noVNC 狀態"
+        echo "  V) 啟動全部 noVNC (VNC 群組)"
+        echo "  x) 停止全部 noVNC"
+        echo "  ─── 設定管理 ──────────────────────────"
+        echo "  l) 列出所有規則"
+        echo "  a) 新增規則"
+        echo "  d) 刪除規則"
+        echo "  n) 掃描區網新設備"
+        echo "  ─────────────────────────────────────"
+        echo "  q) 離開"
+        echo ""
+        read -rp "  請選擇 > " choice
+
+        case "$choice" in
+            1) cmd_status; read -rp "按 Enter 繼續..." ;;
+            2) cmd_start; read -rp "按 Enter 繼續..." ;;
+            3) cmd_stop; read -rp "按 Enter 繼續..." ;;
+            4) cmd_restart; read -rp "按 Enter 繼續..." ;;
+            5)
+                cmd_list
+                read -rp "輸入規則名稱: " n
+                [[ -n "$n" ]] && cmd_start_one "$n"
+                read -rp "按 Enter 繼續..." ;;
+            6)
+                cmd_status
+                read -rp "輸入規則名稱: " n
+                [[ -n "$n" ]] && cmd_stop_one "$n"
+                read -rp "按 Enter 繼續..." ;;
+            7) cmd_start "group=rdp"; read -rp "按 Enter 繼續..." ;;
+            8) cmd_start "group=vnc"; read -rp "按 Enter 繼續..." ;;
+            9) cmd_start "group=smb"; read -rp "按 Enter 繼續..." ;;
+            w) cmd_start "group=web"; read -rp "按 Enter 繼續..." ;;
+            v) cmd_novnc status; read -rp "按 Enter 繼續..." ;;
+            V) cmd_novnc start; read -rp "按 Enter 繼續..." ;;
+            x) cmd_novnc stop; read -rp "按 Enter 繼續..." ;;
+            l) cmd_list; read -rp "按 Enter 繼續..." ;;
+            a) cmd_add; read -rp "按 Enter 繼續..." ;;
+            d)
+                cmd_list
+                read -rp "輸入要刪除的規則名稱: " n
+                [[ -n "$n" ]] && cmd_remove "$n"
+                read -rp "按 Enter 繼續..." ;;
+            n) cmd_scan; read -rp "按 Enter 繼續..." ;;
+            q|Q) echo "Bye!"; exit 0 ;;
+            *) warn "無效選項" ;;
+        esac
+    done
+}
+
+# =====================================================
+# 指令：connect - 顯示連線資訊
+# =====================================================
+cmd_connect() {
+    require_jq
+    local ts_ip; ts_ip="$(tailscale ip -4 2>/dev/null || echo 'N/A')"
+    local local_ip; local_ip="$(hostname -I | awk '{print $1}')"
+
+    header "Tailscale 連線資訊"
+    echo -e "  Tailscale IP  : ${BOLD}${CYAN}$ts_ip${NC}"
+    echo -e "  本地 IP       : ${BOLD}$local_ip${NC}"
+    echo ""
+
+    echo -e "${BOLD}連線到各設備的方式：${NC}"
+    echo -e "${DIM}(從 Tailscale 網路連線到樹莓派的以下 Port)${NC}"
+    echo ""
+
+    jq -r '.forwards[] | [.name, .device, .local_port, .remote_port, .desc] | @tsv' "$CONFIG_FILE" \
+    | while IFS=$'\t' read -r name device lport rport desc; do
+        local status="${RED}○${NC}"
+        is_running "$name" && status="${GREEN}●${NC}"
+        printf "  $status ${BOLD}%-25s${NC} ${CYAN}$ts_ip:%-6s${NC}  →  %s\n" \
+            "$desc" "$lport" "(原 :$rport)"
+    done
+}
+
+# =====================================================
+# 指令：open - 以 IP 直接啟動指定設備的轉發
+# 用法：jf open <IP> [群組...]
+#   jf open 192.168.168.46          → 啟動該 IP 所有規則
+#   jf open 192.168.168.46 rdp vnc  → 只啟動指定群組
+# =====================================================
+cmd_open() {
+    require_jq
+    local ip="${1:-}"
+    shift || true
+    local groups=("$@")
+
+    [[ -z "$ip" ]] && die "用法：jf open <IP> [群組...]"
+
+    # 找出此 IP 對應的 device key
+    local device_key
+    device_key="$(jq -r --arg ip "$ip" \
+        '.devices | to_entries[] | select(.value.ip==$ip) | .key' "$CONFIG_FILE" 2>/dev/null | head -1)"
+
+    if [[ -z "$device_key" ]]; then
+        warn "設定檔中找不到 $ip，嘗試掃描..."
+        # 先確認可達
+        ping -c1 -W2 "$ip" &>/dev/null || die "$ip 不可達"
+        # 自動產生 device key：取末兩段 IP + w 前綴
+        local suffix; suffix="$(echo "$ip" | awk -F. '{print $(NF-1)"_"$NF}')"
+        device_key="dev_${suffix}"
+        jq --arg k "$device_key" --arg ip "$ip" --arg d "Device $ip" \
+            '.devices[$k] = {"ip": $ip, "desc": $d}' "$CONFIG_FILE" > /tmp/jf_tmp.json \
+            && mv /tmp/jf_tmp.json "$CONFIG_FILE"
+        warn "已自動建立設備別名 $device_key，請用 jf scan 完整掃描或 jf add 補充規則"
+    fi
+
+    # 取出此設備的規則，依群組篩選
+    local found=0
+    while IFS= read -r name; do
+        if [[ ${#groups[@]} -eq 0 ]]; then
+            cmd_start_one "$name"
+            found=$((found + 1))
+        else
+            local rule_group
+            rule_group="$(jq -r --arg n "$name" '.forwards[] | select(.name==$n) | .group' "$CONFIG_FILE")"
+            for g in "${groups[@]}"; do
+                if [[ "$rule_group" == "$g" ]]; then
+                    cmd_start_one "$name"
+                    found=$((found + 1))
+                    break
+                fi
+            done
+        fi
+    done < <(get_forwards "device=$device_key")
+
+    if [[ $found -eq 0 ]]; then
+        warn "找不到符合的規則 (device=$device_key, groups=${groups[*]:-全部})"
+        info "先執行 jf scan 或 jf add 新增此設備的轉發規則"
+    fi
+}
+
+# =====================================================
+# noVNC 輔助函式
+# ws_port = local_port + 1000
+# =====================================================
+novnc_pid_file() { echo "$NOVNC_RUN_DIR/$1.pid"; }
+novnc_log_file() { echo "$LOG_DIR/novnc-$1.log"; }
+
+is_novnc_running() {
+    local pf; pf="$(novnc_pid_file "$1")"
+    [[ -f "$pf" ]] || return 1
+    kill -0 "$(cat "$pf")" 2>/dev/null
+}
+
+get_novnc_pid() {
+    local pf; pf="$(novnc_pid_file "$1")"
+    [[ -f "$pf" ]] && cat "$pf" || echo "-"
+}
+
+cmd_novnc_start_one() {
+    local name="$1"
+    local fwd; fwd="$(get_forward "$name")"
+    local device; device="$(echo "$fwd" | jq -r '.device')"
+    local ip; ip="$(get_device_ip "$device")"
+    local lport; lport="$(echo "$fwd" | jq -r '.local_port')"
+    local rport; rport="$(echo "$fwd" | jq -r '.remote_port')"
+    local ws_port=$(( lport + 1000 ))
+
+    command -v websockify &>/dev/null || die "需要安裝 websockify：sudo apt install novnc"
+    [[ -d "$NOVNC_WEB" ]] || die "找不到 noVNC 資源目錄：$NOVNC_WEB"
+
+    if is_novnc_running "$name"; then
+        warn "noVNC $name 已在運行中 (PID: $(get_novnc_pid "$name"))"
+        return 0
+    fi
+
+    local pf; pf="$(novnc_pid_file "$name")"
+    local log; log="$(novnc_log_file "$name")"
+
+    websockify --web "$NOVNC_WEB" "$ws_port" "${ip}:${rport}" >> "$log" 2>&1 &
+    local pid=$!
+    echo "$pid" > "$pf"
+    sleep 0.3
+
+    if is_novnc_running "$name"; then
+        local ts_ip; ts_ip="$(tailscale ip -4 2>/dev/null || echo 'localhost')"
+        ok "${BOLD}noVNC $name${NC} 啟動成功  :$ws_port → $ip:$rport"
+        info "  瀏覽器：${CYAN}http://$ts_ip:$ws_port/vnc.html${NC}"
+    else
+        rm -f "$pf"
+        err "noVNC $name 啟動失敗，請查看：$log"
+        return 1
+    fi
+}
+
+cmd_novnc_stop_one() {
+    local name="$1"
+    local pf; pf="$(novnc_pid_file "$name")"
+
+    if ! is_novnc_running "$name"; then
+        warn "noVNC $name 未在運行"
+        return 0
+    fi
+
+    local pid; pid="$(cat "$pf")"
+    kill "$pid" 2>/dev/null && rm -f "$pf"
+    ok "noVNC $name 已停止 (PID: $pid)"
+}
+
+# =====================================================
+# 指令：novnc - 管理 noVNC WebSocket 代理
+# 用法：jf novnc [start|stop|status] [group=vnc|device=xx|規則名稱]
+# =====================================================
+cmd_novnc() {
+    require_jq
+    local subcmd="${1:-status}"
+    shift || true
+    local target="${1:-group=vnc}"
+
+    case "$subcmd" in
+        start)
+            header "啟動 noVNC"
+            if [[ "$target" == group=* || "$target" == device=* ]]; then
+                while IFS= read -r name; do
+                    cmd_novnc_start_one "$name"
+                done < <(get_forwards "$target")
+            else
+                cmd_novnc_start_one "$target"
+            fi
+            ;;
+        stop)
+            header "停止 noVNC"
+            if [[ "$target" == group=* || "$target" == device=* ]]; then
+                while IFS= read -r name; do
+                    cmd_novnc_stop_one "$name"
+                done < <(get_forwards "$target")
+            else
+                cmd_novnc_stop_one "$target"
+            fi
+            ;;
+        status)
+            header "noVNC 狀態"
+            local ts_ip; ts_ip="$(tailscale ip -4 2>/dev/null || echo 'N/A')"
+            printf "${BOLD}%-22s %-8s %-10s %-8s %-38s${NC}\n" \
+                "規則名稱" "狀態" "PID" "WS Port" "瀏覽器連結"
+            echo -e "${DIM}$(printf '─%.0s' {1..95})${NC}"
+            while IFS= read -r name; do
+                local fwd; fwd="$(get_forward "$name")"
+                local lport; lport="$(echo "$fwd" | jq -r '.local_port')"
+                local ws_port=$(( lport + 1000 ))
+                if is_novnc_running "$name"; then
+                    local pid; pid="$(get_novnc_pid "$name")"
+                    printf "${GREEN}%-22s %-8s${NC} ${DIM}%-10s${NC} %-8s %s\n" \
+                        "$name" "● 運行" "$pid" ":$ws_port" \
+                        "http://$ts_ip:$ws_port/vnc.html"
+                else
+                    printf "${RED}%-22s %-8s${NC} ${DIM}%-10s${NC} %-8s\n" \
+                        "$name" "○ 停止" "-" ":$ws_port"
+                fi
+            done < <(get_forwards "group=vnc")
+            ;;
+        *)
+            err "未知子指令：$subcmd"
+            echo "用法：jf novnc [start|stop|status] [group=vnc|device=xxx|規則名稱]"
+            ;;
+    esac
+}
+
+# =====================================================
+# 指令：scan - 掃描區網，自動偵測設備與開放 Port
+# =====================================================
+
+# 偵測常見服務 Port 對應
+declare -A PORT_GROUP=( [22]="ssh" [80]="web" [443]="web" [445]="smb"
+    [3389]="rdp" [5900]="vnc" [5901]="vnc" [7173]="web" [8000]="web"
+    [8051]="web" [8111]="web" [8080]="web" [8443]="web" [8888]="web" )
+declare -A PORT_DESC=( [22]="SSH" [80]="HTTP" [443]="HTTPS" [445]="SMB 共享資料夾"
+    [3389]="遠端桌面 RDP" [5900]="VNC" [5901]="VNC:1" [7173]="Web :7173"
+    [8000]="Web :8000" [8051]="Web :8051" [8111]="Web :8111"
+    [8080]="Web :8080" [8443]="Web HTTPS" [8888]="Web :8888" )
+SCAN_PORTS=(22 80 443 445 3389 5900 5901 7173 8000 8051 8111 8080 8443 8888)
+
+# 掃描單一 IP 的開放 Port（用 nc，快速 0.5s timeout）
+scan_ports() {
+    local ip="$1"
+    local open=()
+    for port in "${SCAN_PORTS[@]}"; do
+        if nc -z -w1 "$ip" "$port" 2>/dev/null; then
+            open+=("$port")
+        fi
+    done
+    echo "${open[*]}"
+}
+
+# 根據 IP 尾碼與已存規則，計算本地 Port（不衝突）
+calc_local_port() {
+    local rport="$1" suffix="$2"
+    local lport
+    # suffix 只取末兩碼，確保 port 格式合法
+    local s2="${suffix: -2}"
+    case "$rport" in
+        3389) lport="133${s2}" ;;
+        5900) lport="159${s2}" ;;
+        5901) lport="159${s2}1" ;;
+        445)  lport="145${s2}" ;;
+        22)   lport="122${s2}" ;;
+        80)   lport="180${s2}" ;;
+        443)  lport="144${s2}" ;;
+        *)    lport="1${rport: -4}" ;;
+    esac
+    # 移除 leading zeros 並確保是有效數字
+    lport=$((10#$lport))
+    # 若衝突則 +1
+    while jq -e --argjson p "$lport" '.forwards[] | select(.local_port == $p)' \
+          "$CONFIG_FILE" &>/dev/null 2>&1; do
+        lport=$((lport + 1))
+    done
+    echo "$lport"
+}
+
+cmd_scan() {
+    require_jq
+    local subnet="${1:-192.168.2}"
+    local start="${2:-50}"
+    local end="${3:-60}"
+
+    header "智慧掃描 ${subnet}.${start} ~ ${subnet}.${end}"
+    info "使用 fping 廣播掃描在線設備..."
+    echo ""
+
+    # 用 fping 找出存活主機
+    local alive_hosts=()
+    while IFS= read -r ip; do
+        alive_hosts+=("$ip")
+    done < <(fping -a -g "${subnet}.${start}" "${subnet}.${end}" 2>/dev/null)
+
+    if [[ ${#alive_hosts[@]} -eq 0 ]]; then
+        warn "未偵測到任何設備，請確認網路連線"
+        return 1
+    fi
+
+    echo -e "${GREEN}偵測到 ${#alive_hosts[@]} 台設備在線${NC}"
+    echo ""
+
+    # 對每台存活設備掃描 Port
+    declare -A HOST_OPEN_PORTS
+    for ip in "${alive_hosts[@]}"; do
+        local suffix; suffix="$(echo "$ip" | cut -d. -f4)"
+        local already_known
+        already_known="$(jq -r --arg ip "$ip" '.devices[] | select(.ip==$ip) | "已知"' "$CONFIG_FILE" 2>/dev/null)"
+
+        printf "  掃描 ${BOLD}%-18s${NC}" "$ip"
+        local open_ports
+        open_ports="$(scan_ports "$ip")"
+        HOST_OPEN_PORTS["$ip"]="$open_ports"
+
+        if [[ -n "$open_ports" ]]; then
+            local port_names=()
+            for p in $open_ports; do
+                port_names+=("${PORT_DESC[$p]:-:$p}")
+            done
+            printf "${GREEN}%-15s${NC} %s\n" "${already_known:-新設備}" "$(IFS=', '; echo "${port_names[*]}")"
+        else
+            printf "${DIM}在線但無已知服務 Port${NC}\n"
+        fi
+    done
+
+    echo ""
+    header "建議新增的轉發規則"
+
+    # 找出設定檔中尚未涵蓋的 host:port 組合
+    local suggestions=()
+    for ip in "${alive_hosts[@]}"; do
+        local suffix; suffix="$(echo "$ip" | cut -d. -f4)"
+        local open_ports="${HOST_OPEN_PORTS[$ip]:-}"
+        [[ -z "$open_ports" ]] && continue
+
+        # 查此 IP 在設定檔中的 device key
+        local device_key
+        device_key="$(jq -r --arg ip "$ip" '.devices | to_entries[] | select(.value.ip==$ip) | .key' "$CONFIG_FILE" 2>/dev/null | head -1)"
+        if [[ -z "$device_key" ]]; then
+            device_key="pc${suffix}"
+        fi
+
+        for rport in $open_ports; do
+            # 檢查是否已有此 device+port 的規則
+            local count
+            count="$(jq --arg d "$device_key" --argjson p "$rport" \
+                '[.forwards[] | select(.device==$d and .remote_port==$p)] | length' \
+                "$CONFIG_FILE" 2>/dev/null)"
+            [[ "${count:-0}" -gt 0 ]] && continue
+
+            local lport; lport="$(calc_local_port "$rport" "$suffix")"
+            local group="${PORT_GROUP[$rport]:-misc}"
+            local desc="${PORT_DESC[$rport]:-Port $rport}"
+            local name="${device_key}-${group}${rport}"
+
+            suggestions+=("$name|$device_key|$ip|$lport|$rport|$group|$desc")
+            printf "  ${YELLOW}+${NC} %-25s  :%-6s → %s:%-6s  %s\n" \
+                "$name" "$lport" "$ip" "$rport" "$desc"
+        done
+    done
+
+    if [[ ${#suggestions[@]} -eq 0 ]]; then
+        ok "所有偵測到的服務都已在設定檔中，無需新增"
+        return 0
+    fi
+
+    echo ""
+    read -rp "加入全部建議規則？[Y/n/s(逐一選擇)]: " choice
+    choice="${choice:-y}"
+
+    local added=0
+    for entry in "${suggestions[@]}"; do
+        IFS='|' read -r name device ip lport rport group desc <<< "$entry"
+
+        # 確保設備已在 devices 清單
+        if ! jq -e --arg d "$device" '.devices[$d]' "$CONFIG_FILE" &>/dev/null; then
+            jq --arg k "$device" --arg ip "$ip" --arg d "Windows PC .$( echo "$ip" | cut -d. -f4)" \
+                '.devices[$k] = {"ip": $ip, "desc": $d}' "$CONFIG_FILE" > /tmp/jf_tmp.json \
+                && mv /tmp/jf_tmp.json "$CONFIG_FILE"
+        fi
+
+        local do_add=false
+        if [[ "$choice" =~ ^[Yy]$ ]]; then
+            do_add=true
+        elif [[ "$choice" =~ ^[Ss]$ ]]; then
+            read -rp "  新增 $name ($ip:$rport → :$lport)？[Y/n]: " yn
+            [[ "${yn:-y}" =~ ^[Yy]$ ]] && do_add=true
+        fi
+
+        if $do_add; then
+            jq --argjson r "{
+                \"name\": \"$name\",
+                \"device\": \"$device\",
+                \"local_port\": $lport,
+                \"remote_port\": $rport,
+                \"proto\": \"tcp\",
+                \"desc\": \"$desc\",
+                \"group\": \"$group\"
+            }" '.forwards += [$r]' "$CONFIG_FILE" > /tmp/jf_tmp.json \
+                && mv /tmp/jf_tmp.json "$CONFIG_FILE"
+            ok "已新增 $name"
+            added=$((added + 1))
+        fi
+    done
+
+    echo ""
+    if [[ $added -gt 0 ]]; then
+        ok "共新增 $added 條規則"
+        read -rp "立即啟動新增的規則？[Y/n]: " yn
+        if [[ "${yn:-y}" =~ ^[Yy]$ ]]; then
+            for entry in "${suggestions[@]}"; do
+                IFS='|' read -r name _ <<< "$entry"
+                cmd_start_one "$name" 2>/dev/null || true
+            done
+        fi
+    else
+        info "未新增任何規則"
+    fi
+}
+
+# =====================================================
+# Help
+# =====================================================
+cmd_help() {
+    echo -e "${BOLD}${CYAN}jf${NC} - JumpForward Port 轉發管理工具"
+    echo ""
+    echo -e "${BOLD}用法：${NC}"
+    echo "  jf <指令> [參數]"
+    echo ""
+    echo -e "${BOLD}基本指令：${NC}"
+    echo "  status              顯示所有轉發的狀態"
+    echo "  start [目標]        啟動轉發"
+    echo "  stop  [目標]        停止轉發"
+    echo "  restart [目標]      重啟轉發"
+    echo "  list                列出所有設定的規則"
+    echo "  connect             顯示 Tailscale 連線資訊"
+    echo ""
+    echo -e "${BOLD}目標格式：${NC}"
+    echo "  (空白)              所有規則"
+    echo "  <名稱>              單一規則，例如：pc60-rdp"
+    echo "  group=rdp           指定群組 (rdp/vnc/smb/ssh/web)"
+    echo "  device=jetson       指定設備的所有規則"
+    echo ""
+    echo -e "${BOLD}設定管理：${NC}"
+    echo "  add                 互動式新增轉發規則"
+    echo "  remove <名稱>       刪除轉發規則"
+    echo "  log [名稱]          查看轉發日誌"
+    echo ""
+    echo -e "${BOLD}noVNC（瀏覽器 VNC）：${NC}"
+    echo "  novnc               顯示 noVNC 狀態"
+    echo "  novnc start         啟動所有 VNC 群組的 noVNC"
+    echo "  novnc start <名稱>  啟動單一規則的 noVNC"
+    echo "  novnc stop          停止所有 noVNC"
+    echo ""
+    echo -e "${BOLD}系統整合：${NC}"
+    echo "  install             安裝 systemd 開機自啟"
+    echo "  uninstall           移除 systemd service"
+    echo "  menu                互動式選單"
+    echo "  scan [子網] [起] [終]  智慧掃描並自動新增設備"
+    echo ""
+    echo -e "${BOLD}範例：${NC}"
+    echo "  jf start                  # 啟動全部"
+    echo "  jf start pc60-rdp         # 啟動單一規則"
+    echo "  jf start group=rdp        # 啟動 RDP 群組"
+    echo "  jf start device=jetson    # 啟動 Jetson 全部規則"
+    echo "  jf status                 # 查看狀態"
+    echo "  jf connect                # 顯示連線 IP/Port"
+    echo "  jf novnc                  # 查看 noVNC 狀態"
+    echo "  jf novnc start            # 啟動全部 VNC 的 noVNC"
+    echo "  jf novnc start pc60-vnc   # 啟動單台 noVNC"
+    echo "  jf menu                   # 互動式選單"
+    echo "  jf scan                   # 掃描乙太網 192.168.2.50~60"
+    echo "  jf scan wifi              # 掃描 WiFi 192.168.168.1~254"
+    echo "  jf scan 192.168.168 40 50 # 掃描自訂子網範圍"
+    echo "  jf open 192.168.168.46        # 啟動該 IP 所有轉發"
+    echo "  jf open 192.168.168.46 rdp vnc # 只啟動指定群組"
+}
+
+# =====================================================
+# 主入口
+# =====================================================
+CMD="${1:-menu}"
+shift || true
+
+case "$CMD" in
+    start)      cmd_start "$@" ;;
+    stop)       cmd_stop "$@" ;;
+    restart)    cmd_restart "$@" ;;
+    status|st)  cmd_status ;;
+    list|ls)    cmd_list ;;
+    add)        cmd_add ;;
+    remove|rm)  cmd_remove "$@" ;;
+    log)        cmd_log "$@" ;;
+    install)    cmd_install ;;
+    uninstall)  cmd_uninstall ;;
+    connect|cn) cmd_connect ;;
+    novnc)      cmd_novnc "$@" ;;
+    scan)
+        # 快捷：jf scan wifi → 掃描 WiFi 子網
+        if [[ "${1:-}" == "wifi" ]]; then
+            cmd_scan "192.168.168" 1 254
+        else
+            cmd_scan "$@"
+        fi ;;
+    open)       cmd_open "$@" ;;
+    menu)       cmd_menu ;;
+    help|-h|--help) cmd_help ;;
+    *)          err "未知指令：$CMD"; cmd_help; exit 1 ;;
+esac
