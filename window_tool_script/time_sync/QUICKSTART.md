@@ -14,7 +14,7 @@
 在選定的時間伺服器上，以**系統管理員身分**開啟 PowerShell：
 
 ```powershell
-cd D:\docs\AD_ITRI_questcomposite\time_sync
+cd D:\docs\AD_client_project\time_sync
 
 # 執行設定
 .\setup_time_server.ps1
@@ -32,7 +32,7 @@ cd D:\docs\AD_ITRI_questcomposite\time_sync
 在另一台電腦上，以**系統管理員身分**開啟 PowerShell：
 
 ```powershell
-cd D:\project\intel_ARC_support\ITRI_questcomposite\time_sync
+cd D:\project\intel_ARC_support\client_project\time_sync
 
 # 執行設定（將 IP 改為您的 Server IP）
 .\setup_time_client.ps1 -ServerIP "192.168.168.199"
@@ -123,7 +123,7 @@ ipconfig
 
 ```powershell
 # 進入目錄
-cd D:\docs\AD_ITRI_questcomposite\time_sync
+cd D:\docs\AD_client_project\time_sync
 
 # 設定 Server
 .\setup_time_server.ps1
@@ -139,7 +139,7 @@ w32tm /query /status
 
 ```powershell
 # 進入目錄
-cd D:\project\intel_ARC_support\ITRI_questcomposite\time_sync
+cd D:\project\intel_ARC_support\client_project\time_sync
 
 # 設定 Client（改為您的 Server IP）
 .\setup_time_client.ps1 -ServerIP "192.168.168.199"

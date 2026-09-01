@@ -33,7 +33,7 @@ New-Item -ItemType SymbolicLink -Path "C:\MyLink\config.txt" -Target "D:\Origina
 # Link configuration file from project to user directory
 New-Item -ItemType SymbolicLink `
     -Path "C:\Users\User\Documents\config.yaml" `
-    -Target "D:\docs\AD_ITRI_questcomposite\model_use\config.yaml"
+    -Target "D:\docs\AD_client_project\model_use\config.yaml"
 ```
 
 ### 建立目錄符號連結
@@ -51,7 +51,7 @@ New-Item -ItemType SymbolicLink -Path "C:\MyLink" -Target "D:\OriginalFolder"
 ```powershell
 # Link test_captures folder
 New-Item -ItemType SymbolicLink `
-    -Path "D:\docs\AD_ITRI_questcomposite\test_captures" `
+    -Path "D:\docs\AD_client_project\test_captures" `
     -Target "D:\test_data\captures"
 
 # Link model_use folder
@@ -176,7 +176,7 @@ dir /AL /S
 (Get-Item "C:\MyLink").Target
 
 # Example
-$link = Get-Item "D:\docs\AD_ITRI_questcomposite\test_captures"
+$link = Get-Item "D:\docs\AD_client_project\test_captures"
 if ($link.Attributes -match "ReparsePoint") {
     Write-Host "Link Target: $($link.Target)"
 }
@@ -369,11 +369,11 @@ New-Item -ItemType SymbolicLink -Path "C:\My Documents\link" -Target "D:\My File
 ```powershell
 # Link test_captures to external storage
 New-Item -ItemType SymbolicLink `
-    -Path "D:\docs\AD_ITRI_questcomposite\test_captures" `
+    -Path "D:\docs\AD_client_project\test_captures" `
     -Target "E:\TestData\captures"
 
 # Verify link
-Get-Item "D:\docs\AD_ITRI_questcomposite\test_captures" | Select-Object Name, Target
+Get-Item "D:\docs\AD_client_project\test_captures" | Select-Object Name, Target
 ```
 
 #### 範例 2: 連結 model_use 設定目錄
@@ -381,7 +381,7 @@ Get-Item "D:\docs\AD_ITRI_questcomposite\test_captures" | Select-Object Name, Ta
 ```powershell
 # Link model_use from SharePoint sync folder
 New-Item -ItemType SymbolicLink `
-    -Path "D:\docs\AD_ITRI_questcomposite\model_use" `
+    -Path "D:\docs\AD_client_project\model_use" `
     -Target "C:\Users\User\SharePoint\AD_Model\model_use"
 ```
 
@@ -390,8 +390,8 @@ New-Item -ItemType SymbolicLink `
 ```powershell
 # Link logs directory to centralized log server
 New-Item -ItemType SymbolicLink `
-    -Path "C:\Logs\AD_ITRI" `
-    -Target "D:\docs\AD_ITRI_questcomposite\logs"
+    -Path "C:\Logs\AD_client" `
+    -Target "D:\docs\AD_client_project\logs"
 ```
 
 #### 範例 4: 批次建立多個符號連結
@@ -401,7 +401,7 @@ New-Item -ItemType SymbolicLink `
 $linkMappings = @(
     @{ Link = "C:\Projects\model_use"; Target = "D:\SharePoint\model_use" }
     @{ Link = "C:\Projects\test_data"; Target = "E:\TestData" }
-    @{ Link = "C:\Projects\logs"; Target = "D:\docs\AD_ITRI_questcomposite\logs" }
+    @{ Link = "C:\Projects\logs"; Target = "D:\docs\AD_client_project\logs" }
 )
 
 # Create all links

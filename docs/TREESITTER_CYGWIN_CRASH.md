@@ -10,7 +10,7 @@
 
 ## 一、症狀
 
-- 在某個專案資料夾（如 `D:\project\intel_ARC_support\ITRI_questcomposite`）開啟 Neovim 後：
+- 在某個專案資料夾（如 `D:\project\intel_ARC_support\client_project`）開啟 Neovim 後：
   - 一開始：進入 nvim 即閃退
   - 刪掉 auto-session 後：可進入，但**開啟任一實體檔案 / 切換 buffer 時隨機閃退**
 - **非穩定重現**：同一操作有時正常、有時崩潰（約 1/8 機率），這是關鍵特徵

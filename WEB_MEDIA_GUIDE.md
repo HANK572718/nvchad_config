@@ -39,7 +39,7 @@
 2. 模組啟動 filebrowser,並自動用預設瀏覽器開啟頁面
 3. notify 會顯示本機與區網網址,例如:
    ```
-   Serving /home/suser/nh-smartsop
+   Serving /home/suser/acme-vision
    → http://127.0.0.1:8000              (本機)
    → http://192.168.1.56:8000   (區網)
    ```

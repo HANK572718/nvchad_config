@@ -51,14 +51,14 @@ w32tm /query /status
 在 **Server 端**執行：
 
 ```powershell
-cd D:\docs\AD_ITRI_questcomposite\time_sync
+cd D:\docs\AD_client_project\time_sync
 .\configure_sync_interval.ps1 -Role Server -SyncInterval 64
 ```
 
 在 **Client 端**（您的電腦）執行：
 
 ```powershell
-cd D:\project\intel_ARC_support\ITRI_questcomposite\time_sync
+cd D:\project\intel_ARC_support\client_project\time_sync
 .\configure_sync_interval.ps1 -Role Client -ServerIP "192.168.168.199" -SyncInterval 64
 ```
 

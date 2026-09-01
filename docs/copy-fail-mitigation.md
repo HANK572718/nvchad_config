@@ -14,14 +14,7 @@
 
 ## 安裝與執行
 
-### 方式一：從 Craft 直接下載（推薦，適用於新機器）
-
-```bash
-curl -L "https://secure-res.craft.do/v2/5M7mriV6aMWNmN9oWsaoezagGiTAmpwUDe3adbDeJ4UdyiUzb7BPBtkctHRMnphAk11PdTiRXWV3mRndHqRLR95zyawitdGFqs5doDR2nopu85NN9NxoZeAHZrYNWDdtLERPTZtzn2B1Zm3okL5G3xMdKoqWFakyjGtbvMLGoNkJAhWKGfHQEmxpP1zjPqHSnbZG1x2VyBaVJrpFmjDxCRG7VRE/copy-fail-mitigation.sh" -o copy-fail-mitigation.sh
-sudo bash copy-fail-mitigation.sh
-```
-
-### 方式二：從 repo 執行
+### 從 repo 執行
 
 ```bash
 sudo bash script/copy-fail-mitigation.sh
@@ -74,7 +67,6 @@ apt-cache policy linux-image-rpi-v8
 
 ## 參考
 
-- Craft 完整說明文件：<https://hank.craft.me/Ys3xGR8YJZpxRS>
 - [CERT-EU Advisory 2026-005](https://cert.europa.eu/publications/security-advisories/2026-005/)
 - [Xint — Copy Fail 技術分析](https://xint.io/blog/copy-fail-linux-distributions)
 - [BleepingComputer — CISA KEV](https://www.bleepingcomputer.com/news/security/cisa-says-copy-fail-flaw-now-exploited-to-root-linux-systems/)
