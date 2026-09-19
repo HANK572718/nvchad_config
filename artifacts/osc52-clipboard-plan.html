@@ -1,0 +1,761 @@
+<title>OSC52 剪貼簿直通</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  /* Catppuccin Latte — 與 configs/ghostty.config 的 theme = Catppuccin Mocha 同一族 */
+  :root {
+    --base:      #EFF1F5;
+    --mantle:    #E6E9EF;
+    --surface:   #DCE0E8;
+    --line:      #BCC0CC;
+    --text:      #4C4F69;
+    --subtext:   #6C6F85;
+    --faint:     #8C8FA1;
+    --accent:    #8839EF;
+    --accent-bg: #EAE0FB;
+    --ok:        #40A02B;
+    --ok-bg:     #E1F0DC;
+    --bad:       #D20F39;
+    --bad-bg:    #F7DEE3;
+    --warn:      #DF8E1D;
+    --warn-bg:   #F8EBD5;
+    --code-bg:   #E6E9EF;
+
+    --f-display: "Bricolage Grotesque", "PingFang TC", "Heiti TC", sans-serif;
+    --f-body:    "IBM Plex Sans", "PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif;
+    --f-mono:    "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+
+  /* Catppuccin Mocha */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --base:      #1E1E2E;
+      --mantle:    #181825;
+      --surface:   #313244;
+      --line:      #45475A;
+      --text:      #CDD6F4;
+      --subtext:   #A6ADC8;
+      --faint:     #7F849C;
+      --accent:    #CBA6F7;
+      --accent-bg: #302B44;
+      --ok:        #A6E3A1;
+      --ok-bg:     #253328;
+      --bad:       #F38BA8;
+      --bad-bg:    #3A2430;
+      --warn:      #FAB387;
+      --warn-bg:   #3A2E24;
+      --code-bg:   #181825;
+    }
+  }
+  :root[data-theme="dark"] {
+    --base:      #1E1E2E;
+    --mantle:    #181825;
+    --surface:   #313244;
+    --line:      #45475A;
+    --text:      #CDD6F4;
+    --subtext:   #A6ADC8;
+    --faint:     #7F849C;
+    --accent:    #CBA6F7;
+    --accent-bg: #302B44;
+    --ok:        #A6E3A1;
+    --ok-bg:     #253328;
+    --bad:       #F38BA8;
+    --bad-bg:    #3A2430;
+    --warn:      #FAB387;
+    --warn-bg:   #3A2E24;
+    --code-bg:   #181825;
+  }
+
+  body {
+    background: var(--base);
+    color: var(--text);
+    font-family: var(--f-body);
+    font-size: 15px;
+    line-height: 1.7;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 860px;
+    margin-inline: auto;
+    padding-inline: 20px;
+    padding-block: 48px 72px;
+  }
+
+  /* ── 標頭 ───────────────────────────────── */
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(30px, 6vw, 46px);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    margin: 0 0 16px;
+    text-wrap: balance;
+  }
+  .lede {
+    font-size: 17px;
+    color: var(--subtext);
+    margin: 0;
+    max-width: 62ch;
+  }
+  .env {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    margin-top: 26px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+  }
+  .chip {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--subtext);
+    white-space: nowrap;
+  }
+
+  /* ── 區塊 ───────────────────────────────── */
+  section { margin-top: 56px; }
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 23px;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  h2 .num {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--faint);
+    letter-spacing: 0.08em;
+  }
+  h3 {
+    font-family: var(--f-body);
+    font-weight: 600;
+    font-size: 15px;
+    margin: 30px 0 8px;
+  }
+  h3 code { font-size: 14px; }
+  .sub {
+    color: var(--subtext);
+    margin: 0 0 22px;
+    max-width: 66ch;
+  }
+  p { max-width: 66ch; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cmt { color: var(--faint); }
+  .add { color: var(--ok); }
+  .del { color: var(--bad); }
+  .key { color: var(--accent); }
+
+  /* ── 判讀盒 ─────────────────────────────── */
+  .verdict {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-bg);
+    padding: 16px 18px;
+    border-radius: 0 5px 5px 0;
+    margin: 0 0 8px;
+  }
+  .verdict p { margin: 0; max-width: none; }
+  .verdict p + p { margin-top: 10px; }
+
+  .note {
+    border-left: 3px solid var(--warn);
+    background: var(--warn-bg);
+    padding: 14px 16px;
+    border-radius: 0 5px 5px 0;
+    font-size: 14px;
+  }
+  .note p { margin: 0; max-width: none; }
+  .note p + p { margin-top: 8px; }
+
+  /* ── 表格 ───────────────────────────────── */
+  .scroll { overflow-x: auto; margin: 18px 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 520px;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--faint);
+    border-bottom-width: 1px;
+  }
+  td.mono, th.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+  tr.is-now td { background: var(--bad-bg); }
+
+  .tag {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .tag.pass { background: var(--ok-bg);  color: var(--ok);  border: 1px solid var(--ok); }
+  .tag.fail { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); }
+
+  /* ── 圖 ─────────────────────────────────── */
+  figure { margin: 26px 0 0; }
+  .figscroll { overflow-x: auto; }
+  svg { max-width: 100%; height: auto; display: block; color: var(--text); }
+  figcaption {
+    font-size: 13px;
+    color: var(--subtext);
+    margin-top: 14px;
+    max-width: 66ch;
+  }
+  .dia-box   { fill: var(--mantle); stroke: var(--line); stroke-width: 1; }
+  .dia-box-b { fill: var(--bad-bg); stroke: var(--bad); stroke-width: 1.5; }
+  .dia-box-g { fill: var(--ok-bg);  stroke: var(--ok);  stroke-width: 1.5; }
+  .dia-name  { fill: var(--text);    font-family: var(--f-body); font-size: 13px; font-weight: 600; }
+  .dia-sub   { fill: var(--faint);   font-family: var(--f-mono); font-size: 9.5px; }
+  .dia-lab   { fill: var(--subtext); font-family: var(--f-mono); font-size: 9.5px; }
+  .dia-row   { fill: var(--faint);   font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.1em; }
+  .dia-line  { stroke: var(--line); stroke-width: 1.5; fill: none; }
+  .dia-bad   { stroke: var(--bad);  stroke-width: 1.5; fill: none; stroke-dasharray: 4 3; }
+  .dia-ok    { stroke: var(--ok);   stroke-width: 1.5; fill: none; }
+  .dia-badt  { fill: var(--bad); font-family: var(--f-mono); font-size: 10px; font-weight: 500; }
+  .dia-okt   { fill: var(--ok);  font-family: var(--f-mono); font-size: 10px; font-weight: 500; }
+  .mk-line   { fill: var(--line); }
+  .mk-bad    { fill: var(--bad); }
+  .mk-ok     { fill: var(--ok); }
+
+  /* ── 清單 ───────────────────────────────── */
+  ul, ol { padding-left: 20px; max-width: 66ch; }
+  li { margin-bottom: 7px; }
+  li::marker { color: var(--faint); }
+
+  .files { display: grid; gap: 22px; margin-top: 8px; }
+  .file {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--mantle);
+  }
+  .file > header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .file > header .path {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--accent);
+    word-break: break-all;
+  }
+  .file > header .what { font-size: 12.5px; color: var(--faint); }
+  .file .body { padding: 16px; }
+  .file .body > p:first-child { margin-top: 0; }
+  .file .body > :last-child { margin-bottom: 0; }
+  .file pre { background: var(--code-bg); }
+
+  .steps { counter-reset: s; list-style: none; padding-left: 0; max-width: none; }
+  .steps > li {
+    counter-increment: s;
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .steps > li::before {
+    content: counter(s);
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    margin-top: 3px;
+  }
+  .steps .expect {
+    font-size: 13px;
+    color: var(--subtext);
+    margin: 4px 0 0;
+  }
+
+  .out {
+    display: grid;
+    gap: 12px;
+    padding-left: 0;
+    list-style: none;
+    max-width: none;
+  }
+  .out li {
+    border: 1px dashed var(--line);
+    border-radius: 5px;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--subtext);
+    margin: 0;
+  }
+  .out b { color: var(--text); font-weight: 600; }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--faint);
+    font-family: var(--f-mono);
+  }
+
+  @media (max-width: 520px) {
+    .wrap { padding-block: 34px 56px; }
+    body { font-size: 14.5px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">nvchad_config · 變更規劃</p>
+  <h1>OSC52 剪貼簿直通</h1>
+  <p class="lede">
+    讓 tmux 裡的 nvim（本機與 SSH 遠端一致）按下 <code>v</code> 圈選、<code>y</code> 複製後，
+    內容直接落進你面前這台 Mac 的系統剪貼簿；而 <code>dd</code>、<code>x</code> 這些刪除動作不再洗掉剪貼簿。
+  </p>
+
+  <div class="env">
+    <span class="chip">macOS · Darwin 25.6</span>
+    <span class="chip">nvim 0.11.7</span>
+    <span class="chip">tmux 3.7b</span>
+    <span class="chip">Ghostty 1.3.1</span>
+    <span class="chip">TERM=xterm-ghostty</span>
+    <span class="chip">2026-09-19</span>
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">01</span>先講結論</h2>
+    <p class="sub">實測之後，原本的假設有兩處不成立，規劃內容因此和「直覺答案」不同。</p>
+
+    <div class="verdict">
+      <p><b>本機那條路其實早就通了。</b> NvChad 的 <code>nvchad.options</code> 已經替你設了
+      <code>clipboard = "unnamedplus"</code>，而 nvim 在這台 Mac 上抓到的 provider 是
+      <code>pbcopy</code>。所以本機 <code>v</code> + <code>y</code> 現在就會進系統剪貼簿——
+      代價是 <code>dd</code> / <code>x</code> / <code>ciw</code> 也一起進去，剪好的東西常被誤刪洗掉。</p>
+      <p><b>真正斷掉的是 SSH 遠端那條，而且斷點在 tmux。</b>
+      tmux 的 <code>set-clipboard</code> 目前是預設值 <code>external</code>，
+      實測會把「應用程式送出的 OSC52」整段吞掉，不轉發給外層終端機。
+      遠端 nvim 再怎麼送都到不了 Ghostty。</p>
+    </div>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 940 250" role="img" aria-label="訊號鏈比較圖：遠端 nvim 送出的 OSC52 經 ssh TTY 回流到 tmux，現況在 tmux 這一段被吞掉而到不了 Ghostty 與系統剪貼簿；改為 set-clipboard on 之後整條鏈接通。">
+          <defs>
+            <marker id="a-line" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+              <polygon class="mk-line" points="0,0 8,4 0,8" />
+            </marker>
+            <marker id="a-bad" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+              <polygon class="mk-bad" points="0,0 8,4 0,8" />
+            </marker>
+            <marker id="a-ok" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+              <polygon class="mk-ok" points="0,0 8,4 0,8" />
+            </marker>
+          </defs>
+
+          <!-- ── 現在 ── -->
+          <text class="dia-row" x="0" y="12">現在</text>
+
+          <rect class="dia-box"   x="0"   y="24" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="70"  y="45" text-anchor="middle">遠端 nvim</text>
+          <text class="dia-sub"   x="70"  y="60" text-anchor="middle">y → setreg("+")</text>
+
+          <rect class="dia-box"   x="200" y="24" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="270" y="45" text-anchor="middle">ssh TTY</text>
+          <text class="dia-sub"   x="270" y="60" text-anchor="middle">原路回流</text>
+
+          <rect class="dia-box-b" x="400" y="24" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="470" y="45" text-anchor="middle">tmux</text>
+          <text class="dia-sub"   x="470" y="60" text-anchor="middle">set-clipboard external</text>
+
+          <rect class="dia-box"   x="600" y="24" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="670" y="45" text-anchor="middle">Ghostty</text>
+          <text class="dia-sub"   x="670" y="60" text-anchor="middle">clipboard-write allow</text>
+
+          <rect class="dia-box"   x="800" y="24" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="870" y="45" text-anchor="middle">macOS</text>
+          <text class="dia-sub"   x="870" y="60" text-anchor="middle">系統剪貼簿</text>
+
+          <line class="dia-line" x1="140" y1="48" x2="194" y2="48" marker-end="url(#a-line)" />
+          <text class="dia-lab"  x="167" y="41" text-anchor="middle">OSC52</text>
+          <line class="dia-line" x1="340" y1="48" x2="394" y2="48" marker-end="url(#a-line)" />
+          <text class="dia-lab"  x="367" y="41" text-anchor="middle">回流</text>
+
+          <line class="dia-bad"  x1="540" y1="48" x2="586" y2="48" marker-end="url(#a-bad)" />
+          <text class="dia-badt" x="567" y="41" text-anchor="middle">✕</text>
+          <text class="dia-badt" x="567" y="86" text-anchor="middle">整段吞掉</text>
+
+          <line class="dia-line" x1="740" y1="48" x2="794" y2="48" marker-end="url(#a-line)" />
+          <text class="dia-lab"  x="767" y="41" text-anchor="middle">寫入</text>
+
+          <!-- ── 改後 ── -->
+          <text class="dia-row" x="0" y="140">改後</text>
+
+          <rect class="dia-box"   x="0"   y="152" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="70"  y="173" text-anchor="middle">遠端 nvim</text>
+          <text class="dia-sub"   x="70"  y="188" text-anchor="middle">TextYankPost 鏡射</text>
+
+          <rect class="dia-box"   x="200" y="152" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="270" y="173" text-anchor="middle">ssh TTY</text>
+          <text class="dia-sub"   x="270" y="188" text-anchor="middle">原路回流</text>
+
+          <rect class="dia-box-g" x="400" y="152" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="470" y="173" text-anchor="middle">tmux</text>
+          <text class="dia-sub"   x="470" y="188" text-anchor="middle">set-clipboard on</text>
+
+          <rect class="dia-box"   x="600" y="152" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="670" y="173" text-anchor="middle">Ghostty</text>
+          <text class="dia-sub"   x="670" y="188" text-anchor="middle">clipboard-write allow</text>
+
+          <rect class="dia-box"   x="800" y="152" width="140" height="48" rx="4" />
+          <text class="dia-name"  x="870" y="173" text-anchor="middle">macOS</text>
+          <text class="dia-sub"   x="870" y="188" text-anchor="middle">系統剪貼簿</text>
+
+          <line class="dia-line" x1="140" y1="176" x2="194" y2="176" marker-end="url(#a-line)" />
+          <text class="dia-lab"  x="167" y="169" text-anchor="middle">OSC52</text>
+          <line class="dia-line" x1="340" y1="176" x2="394" y2="176" marker-end="url(#a-line)" />
+          <text class="dia-lab"  x="367" y="169" text-anchor="middle">回流</text>
+          <line class="dia-ok"   x1="540" y1="176" x2="594" y2="176" marker-end="url(#a-ok)" />
+          <text class="dia-okt"  x="567" y="169" text-anchor="middle">轉發</text>
+          <line class="dia-line" x1="740" y1="176" x2="794" y2="176" marker-end="url(#a-line)" />
+          <text class="dia-lab"  x="767" y="169" text-anchor="middle">寫入</text>
+
+          <text class="dia-lab" x="0" y="230">整條鏈只有第三段需要改；兩端（nvim provider、Ghostty clipboard-write）本來就備妥。</text>
+        </svg>
+      </div>
+      <figcaption>
+        OSC52 的資料是沿著 <b>既有的 TTY 通道</b>回流的——它跟終端機畫面上的字走同一條路，
+        不需要遠端裝剪貼簿程式、不需要反向通道。也正因為如此，中途任何一層不轉發，資料就停在那裡。
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">02</span>實測證據</h2>
+    <p class="sub">
+      用一個<b>完全隔離</b>的巢狀 tmux 做的：私有 socket 另起一個 tmux server，外層用
+      <code>pipe-pane</code> 捕捉原始位元組。沒有碰你正在用的 tmux session，也沒有動到系統剪貼簿
+      （你剪貼簿裡那份帶 RTF 格式的內容原封不動）。
+    </p>
+
+    <h3>A. tmux 到底轉不轉發應用程式的 OSC52</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th><code>set-clipboard</code></th>
+            <th class="mono">捕捉位元組</th>
+            <th>抓到的 <code>]52;c;…</code></th>
+            <th>結果</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="is-now">
+            <td class="mono">external　<span style="color:var(--bad)">（目前狀態）</span></td>
+            <td class="mono">83</td>
+            <td>1 次 — 只有指令本身的畫面回顯</td>
+            <td><span class="tag fail">未轉發</span></td>
+          </tr>
+          <tr>
+            <td class="mono">on</td>
+            <td class="mono">107</td>
+            <td>2 次 — 回顯 ＋ 真正的 <code>ESC ] 52</code> 序列</td>
+            <td><span class="tag pass">已轉發</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>多出來的那 24 bytes，就是被轉發出去的 OSC52。這是整個規劃唯一的必要修正。</p>
+
+    <h3>B. 遠端主機 terminfo 沒有 <code>Ms</code> 會不會壞掉</h3>
+    <p class="sub" style="margin-bottom:14px">
+      tmux 手冊說轉發需要 terminfo 有 <code>Ms</code> 這項能力。而本機實測：
+      <code>xterm-ghostty</code> <b>有</b> <code>Ms</code>、<code>tmux-256color</code> <b>沒有</b>。
+      網路上的標準食譜因此都會叫你加一行 <code>terminal-overrides</code> 強制宣告 <code>Ms</code>。
+      我把外層 TERM 換成沒有 <code>Ms</code> 的 <code>tmux-256color</code> 來驗這條到底需不需要：
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>外層 TERM</th><th><code>Ms</code> override</th><th>結果</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">tmux-256color（無 Ms）</td>
+            <td class="mono">沒加</td>
+            <td><span class="tag pass">仍然轉發</span></td>
+          </tr>
+          <tr>
+            <td class="mono">tmux-256color（無 Ms）</td>
+            <td class="mono">加了</td>
+            <td><span class="tag pass">轉發</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p><b>那條食譜在你的版本上是多餘的。</b> tmux 3.2 之後改用 <code>terminal-features</code>
+      並在 attach 時發 <code>ESC[&gt;q</code> 主動問終端機是誰，能力是動態協商出來的，不再只看 terminfo。
+      我們實測 <code>on</code> 這組的 <code>terminal-features</code> 已經是
+      <code>xterm*:clipboard:…</code>。</p>
+      <p>但它對<b>舊 tmux 的遠端主機</b>仍有意義：tmux 3.0 / 3.1（Ubuntu 20.04、Jetson L4T 那類 LTS 映像常見）
+      沒有 <code>terminal-features</code>，只能查 terminfo。所以這行會加、但標註為「舊版保險」，
+      而不是冒充成必要修正。對不支援 OSC52 的終端機來說，多送的序列會被忽略，不會亂碼。</p>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">03</span>改動清單</h2>
+    <p class="sub">三個檔案。tmux 一段、nvim 一段、文件一份。</p>
+
+    <div class="files">
+
+      <article class="file">
+        <header>
+          <span class="path">script/devtools/tmux.conf</span>
+          <span class="what">新增一段（放在「終端相容性」之後）</span>
+        </header>
+        <div class="body">
+          <pre><code><span class="cmt"># --- 剪貼簿：讓應用程式送出的 OSC52 穿過 tmux ---</span>
+<span class="cmt"># tmux 預設 set-clipboard=external。手冊只說 external 會「嘗試設定終端機剪貼簿」，</span>
+<span class="cmt"># 沒說清楚它對「應用程式送來的序列」怎麼處理——實測（tmux 3.7b，巢狀 tmux +</span>
+<span class="cmt"># pipe-pane 捕捉原始位元組）是整段吞掉，不轉發。只有 on 會接受並往外送。</span>
+<span class="cmt"># 這是遠端 nvim 的 OSC52 到不了本機剪貼簿的唯一原因。</span>
+<span class="add">set -s set-clipboard on</span>
+
+<span class="cmt"># 舊版保險（非必要）：tmux &lt; 3.2 沒有 terminal-features，判斷外層終端支不支援</span>
+<span class="cmt"># OSC52 只能查 terminfo 的 Ms 能力；遠端主機常常沒有 xterm-ghostty 這個條目。</span>
+<span class="cmt"># 本機 3.7b 實測不加也通（會用 ESC[&gt;q 動態協商），純粹是給 Ubuntu 20.04 /</span>
+<span class="cmt"># Jetson L4T 那類舊 tmux 的遠端用。終端機不支援時會忽略此序列，不會亂碼。</span>
+<span class="add">set -ag terminal-overrides ',*:Ms=\E]52;%p1%s;%p2%s\007'</span></code></pre>
+          <p style="margin-bottom:0;font-size:13.5px;color:var(--subtext)">
+            <b>生效方式：</b><code>set-clipboard</code> 是 server option，
+            <code>prefix + r</code> 重載<b>不夠</b>，要 <code>tmux kill-server</code>。
+            這點 repo 的 tmux.conf 在圖形協定那段已經自己註記過，一致對待。
+          </p>
+        </div>
+      </article>
+
+      <article class="file">
+        <header>
+          <span class="path">lua/configs/clipboard.lua</span>
+          <span class="what">既有模組，加三塊</span>
+        </header>
+        <div class="body">
+          <p style="font-size:13.5px;color:var(--subtext);margin-top:0">
+            這個模組已經做好「本機用原生 provider、SSH 用 OSC52」的分支，不動它。加的是下面三塊。
+          </p>
+
+          <pre><code><span class="cmt">-- ① 解除 NvChad 的 unnamedplus。</span>
+<span class="cmt">--    lua/options.lua 第一行 require "nvchad.options" 會設 clipboard=unnamedplus，</span>
+<span class="cmt">--    那讓 d / x / c 一起覆蓋系統剪貼簿。本模組在其後才跑，可以蓋掉。</span>
+<span class="del">vim.opt.clipboard = ""</span>
+
+<span class="cmt">-- ② 只鏡射「真正的 yank」到 + register。</span>
+local grp = vim.api.nvim_create_augroup("ClipboardYankMirror", { clear = true })
+vim.api.nvim_create_autocmd("TextYankPost", {
+  group = grp,
+  desc = "把 y 的內容同步到系統剪貼簿（刪除動作不受影響）",
+  callback = function()
+    local ev = vim.v.event
+    <span class="cmt">-- operator ~= "y" 擋掉 d / c / x；regname ~= "" 保留 "ay 這種指定暫存器的用法</span>
+    if ev.operator ~= "y" or ev.regname ~= "" then return end
+    if use_osc52 and exceeds_osc52_limit(ev.regcontents) then return end
+    vim.fn.setreg("+", ev.regcontents, ev.regtype)
+  end,
+})
+
+<span class="cmt">-- ③ 解除 unnamedplus 之後 p 不再貼系統剪貼簿，補一個對稱的按鍵。</span>
+vim.keymap.set({ "n", "v" }, "&lt;leader&gt;p", '"+p', { desc = "貼上系統剪貼簿" })</code></pre>
+
+          <h3 style="margin-top:22px">另外兩個小補強</h3>
+          <ul style="font-size:14px">
+            <li><b>大量 yank 的保險絲。</b>OSC52 走的是終端機序列，tmux 與各家終端機都有沒寫進文件的長度上限，
+              超過會<b>靜默截斷</b>——你以為複製成功、貼出來少一半，這是最難察覺的失敗。
+              超過門檻就 <code>vim.notify</code> 告訴你改用 <code>"+y</code>，不要假裝成功。
+              門檻給預設值並開放 <code>vim.g</code> 覆寫。只在 OSC52 路徑檢查，本機 <code>pbcopy</code> 沒這問題。</li>
+            <li><b><code>is_remote()</code> 加手動覆寫。</b>目前只看 <code>SSH_TTY</code> / <code>SSH_CONNECTION</code> /
+              <code>SSH_CLIENT</code>。你要涵蓋 Windows 遠端，而 Windows OpenSSH 注入這些變數的行為不像 Unix sshd 那樣可靠，
+              我也無法從這台機器驗證。加一個 <code>NVIM_CLIPBOARD_OSC52=1/0</code> 的逃生門，
+              偵測失準時不必改程式碼就能救。</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="file">
+        <header>
+          <span class="path">docs/CLIPBOARD_OSC52_GUIDE.md</span>
+          <span class="what">既有文件，補實測章節</span>
+        </header>
+        <div class="body">
+          <p style="margin-top:0">
+            這份文件的 WHY / HOW 寫得完整，但它現在告訴讀者 tmux 要
+            <code>set -g set-clipboard on</code>，而<b>實際部署的 tmux.conf 裡根本沒這一行</b>——
+            文件與設定不一致，正是這次踩到的坑。要補的是：
+          </p>
+          <ul>
+            <li><code>external</code> vs <code>on</code> 的實測對照表（就是上面那張），連同判讀方式</li>
+            <li><code>Ms</code> 那條食譜「在 3.2+ 是多餘、在舊版才需要」的界線</li>
+            <li>三層自檢指令：<code>tmux show-options -s | grep clipboard</code>、
+              <code>infocmp -x $TERM | grep Ms</code>、nvim 內 <code>:lua print(vim.o.clipboard)</code></li>
+            <li>把 <code>docs/development-notes/</code> 的筆記依全域規範一併補上（附 mermaid 鏈路圖）</li>
+          </ul>
+          <p style="margin-bottom:0">
+            那支隔離探針腳本我會收成 <code>script/devtools/osc52-probe.sh</code>，
+            以後換機器或升 tmux 可以直接重跑驗證，不用再臨時寫一次。
+          </p>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">04</span>你會感覺到的取捨</h2>
+    <p class="sub">這些是行為改變，不是 bug，先講在前面。</p>
+    <ul>
+      <li><b><code>p</code> 不再直接貼系統剪貼簿。</b>這是解除 <code>unnamedplus</code> 的必然代價。
+        替代有三條：<code>&lt;leader&gt;p</code>、原生 <code>"+p</code>、
+        或直接用 Ghostty 的 <code>Cmd+V</code>（insert 模式下走 bracketed paste，最順）。</li>
+      <li><b><code>dd</code> 之後 <code>p</code> 的行為不變。</b>刪除仍然進 nvim 自己的暫存器，
+        nvim 內部剪下貼上完全照舊——改的只是「刪除不再外洩到系統剪貼簿」。</li>
+      <li><b><code>set-clipboard on</code> 會讓 tmux 額外把內容存成自己的 paste buffer。</b>
+        多一份記憶體，換來 <code>prefix + ]</code> 也能貼同一份內容。可接受。</li>
+      <li><b>OSC52 的貼上（讀回）仍然不通，這是刻意的。</b>
+        終端機預設擋掉 OSC52 讀剪貼簿，否則遠端主機能偷走你本機剪貼簿裡的東西。
+        你的 <code>configs/ghostty.config</code> 把 <code>clipboard-read</code> 留在預設的
+        <code>ask</code>，是對的，不動它。</li>
+    </ul>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">05</span>驗收步驟</h2>
+    <p class="sub">每一步都有明確的預期輸出，對不上就是沒改成功。</p>
+    <ol class="steps">
+      <li>
+        <div>
+          <code>tmux kill-server</code> 後重開 tmux
+          <p class="expect">→ <code>tmux show-options -s | grep clipboard</code> 要顯示 <code>set-clipboard on</code></p>
+        </div>
+      </li>
+      <li>
+        <div>
+          本機 nvim：<code>v</code> 圈選一段 → <code>y</code> → 終端機跑 <code>pbpaste</code>
+          <p class="expect">→ 印出剛才選的那段</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          接著在 nvim 裡按 <code>dd</code>，再跑一次 <code>pbpaste</code>
+          <p class="expect">→ 內容<b>不變</b>（這是這次改動的重點，刪除不再汙染剪貼簿）</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          SSH 進遠端（Linux / Jetson 先測），tmux + nvim 裡重複第 2 步，回本機 <code>pbpaste</code>
+          <p class="expect">→ 印出遠端選的那段。這一步在改動前是必定失敗的</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          Windows 遠端：先 <code>:lua print(vim.inspect(vim.g.clipboard))</code> 確認走到 OSC52
+          <p class="expect">→ 顯示 <code>OSC52</code>；若顯示 <code>nil</code> 表示 SSH 偵測失準，
+            設 <code>NVIM_CLIPBOARD_OSC52=1</code> 再試</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          重跑 <code>script/devtools/osc52-probe.sh</code>
+          <p class="expect">→ <code>on</code> 那組 <span class="tag pass">PASS</span></p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">06</span>這次不做</h2>
+    <p class="sub">你沒選的先擱著，但有一項是查的時候撿到的，值得你知道。</p>
+    <ul class="out">
+      <li>
+        <b>tmux copy-mode 的 v / y。</b>順帶發現：tmux 3.7b 的 <code>copy-mode-vi</code> 裡
+        <code>v</code> 其實綁的是 <code>rectangle-toggle</code>（切矩形選取）、<code>y</code> <b>根本沒綁</b>，
+        真正複製的是 <code>Enter</code>。如果你按 <code>prefix + [</code> 之後習慣按 <code>v</code> 再 <code>y</code>，
+        那是無效操作——跟 nvim 的斷點是兩回事。要補只需兩行 <code>bind-key -T copy-mode-vi</code>，說一聲就加。
+      </li>
+      <li>
+        <b>滑鼠拖曳選取。</b>現在 <code>mouse on</code> + <code>mouse=a</code> 會把拖曳吃進 nvim 的 visual 選取，
+        拿不到終端機原生選取。要改得先決定犧牲哪一邊（Ghostty 按住 Option 可暫時拿回原生選取），
+        牽涉的取捨跟這次無關。
+      </li>
+      <li>
+        <b>順手記一筆：</b><code>.gitignore</code> 目前沒有 <code>.claude/</code> 與 <code>CLAUDE.md</code>
+        （全域規範第四條），而 <code>.claude/settings.local.json</code> 已經被追蹤。這次不動，留給你決定。
+      </li>
+    </ul>
+  </section>
+
+  <footer>
+    規劃待核可 · 原始檔 artifacts/osc52-clipboard-plan.html · nvchad_config @ main
+  </footer>
+
+</div>
