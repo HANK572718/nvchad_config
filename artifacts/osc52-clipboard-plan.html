@@ -586,9 +586,8 @@
 <span class="cmt"># Jetson L4T 那類舊 tmux 的遠端用。終端機不支援時會忽略此序列，不會亂碼。</span>
 <span class="add">set -ag terminal-overrides ',*:Ms=\E]52;%p1%s;%p2%s\007'</span></code></pre>
           <p style="margin-bottom:0;font-size:13.5px;color:var(--subtext)">
-            <b>生效方式：</b><code>set-clipboard</code> 是 server option，
-            <code>prefix + r</code> 重載<b>不夠</b>，要 <code>tmux kill-server</code>。
-            這點 repo 的 tmux.conf 在圖形協定那段已經自己註記過，一致對待。
+            <b>生效方式：</b><code>prefix + r</code>（<code>source-file</code>）重載<b>即生效</b>，不用 <code>kill-server</code>、
+            session 不會斷。實測過：server 以 <code>external</code> 啟動後執行期重載成 <code>on</code>，OSC52 立刻轉發。
           </p>
         </div>
       </article>
@@ -693,7 +692,7 @@ vim.keymap.set({ "n", "v" }, "&lt;leader&gt;p", '"+p', { desc = "貼上系統剪
     <ol class="steps">
       <li>
         <div>
-          <code>tmux kill-server</code> 後重開 tmux
+          tmux 裡按 <code>prefix + r</code> 重載設定
           <p class="expect">→ <code>tmux show-options -s | grep clipboard</code> 要顯示 <code>set-clipboard on</code></p>
         </div>
       </li>
