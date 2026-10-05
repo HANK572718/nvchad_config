@@ -104,20 +104,27 @@ else
   success "npm $(npm --version) 已可用"
 fi
 
-# Neovim：從 GitHub Releases 安裝最新版（確保 >= 0.11）
+# Neovim：從 GitHub Releases 安裝「釘死的 0.11.x」
+#
+# 為什麼不抓 latest：nvim-treesitter 的 master 分支已於 2026-04 封存，README 明確
+# 寫「Neovim 0.10 or 0.11（0.12 is not supported）」。Neovim 0.12 移除了
+# vim.treesitter.query.add_directive 的 all=false 相容層，directive handler 收到的
+# 變成節點「陣列」而非單一節點，開含 fenced code block 的 markdown 會噴
+# "attempt to call method 'range' (a nil value)"（image.nvim / foldexpr 都會踩）。
+# 詳見 docs/development-notes/08151555-treesitter-0.12-directive-breaking-change.md
+# 日後若整份 config 遷移到 nvim-treesitter main 分支，把這個字串改掉即可。
+NVIM_VERSION="0.11.7"
+
 install_neovim() {
   local ARCH; ARCH=$(uname -m)
-  local NVIM_VERSION
-  NVIM_VERSION=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest \
-    | grep '"tag_name"' | grep -oP 'v[\d.]+')
   local TARBALL
   case "$ARCH" in
     x86_64)  TARBALL="nvim-linux-x86_64.tar.gz" ;;
     aarch64) TARBALL="nvim-linux-arm64.tar.gz" ;;
     *)       error "不支援的架構：$ARCH" ;;
   esac
-  info "下載 Neovim $NVIM_VERSION ($ARCH)..."
-  curl -L "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}/${TARBALL}" \
+  info "下載 Neovim v$NVIM_VERSION ($ARCH)..."
+  curl -L "https://github.com/neovim/neovim/releases/download/v${NVIM_VERSION}/${TARBALL}" \
     -o "/tmp/${TARBALL}"
   tar xzf "/tmp/${TARBALL}" -C /tmp
   local EXTRACT_DIR="/tmp/${TARBALL%.tar.gz}"
@@ -125,16 +132,21 @@ install_neovim() {
   sudo cp -r "${EXTRACT_DIR}/lib" /usr/local/
   sudo cp -r "${EXTRACT_DIR}/share" /usr/local/
   rm -rf "/tmp/${TARBALL}" "$EXTRACT_DIR"
-  success "Neovim $(nvim --version | head -1) 安裝完成"
+  success "Neovim $(nvim --version 2>/dev/null | sed -n '1p') 安裝完成"
 }
 
 if command -v nvim &>/dev/null; then
-  NVIM_MINOR=$(nvim --version | head -1 | grep -oP '\d+\.\d+' | head -1 | cut -d. -f2)
-  if [[ "$NVIM_MINOR" -lt 11 ]]; then
-    warn "Neovim 版本過舊（< 0.11），重新安裝..."
+  # 註：用 sed 取代 `| head -1`，避免 set -o pipefail 下 head 提早關閉管線讓 nvim
+  #     收到 SIGPIPE（exit 141）而被誤判成失敗。
+  NVIM_CUR=$(nvim --version 2>/dev/null | sed -n '1s/^NVIM v//p')
+  NVIM_MINOR=$(printf '%s' "$NVIM_CUR" | cut -d. -f2)
+  # 必須「剛好是 0.11.x」：太舊不行，0.12+ 也不行（nvim-treesitter master 不支援 0.12）。
+  # 舊版寫法是 -lt 11，會把 0.12 當成合格而放行 —— 正是這次 markdown crash 的成因。
+  if [[ "$NVIM_MINOR" != "11" ]]; then
+    warn "Neovim v${NVIM_CUR} 不在釘定的 0.11.x，改裝 v${NVIM_VERSION}..."
     install_neovim
   else
-    success "Neovim $(nvim --version | head -1)（已是 0.11+）"
+    success "Neovim v${NVIM_CUR}（已是釘定的 0.11.x）"
   fi
 else
   install_neovim
@@ -413,6 +425,23 @@ else
   nvim --headless "+Lazy! sync" +qa 2>&1 \
     || warn "Lazy sync 結束（部分 plugin 可能需要在 nvim 內手動完成）"
   success "Plugin 同步完成"
+
+  # LSP server / formatter / DAP 安裝。
+  # mason.nvim 沒有 ensure_installed 選項，清單掛在 lua/chadrc.lua 的 M.mason.pkgs
+  # （= nvconfig.mason.pkgs），由這支腳本實際安裝。少了這步，開專案時會噴
+  # "Spawning language server ... failed"。詳細的坑（非同步安裝被提前終止、
+  # :MasonInstallAll 在 headless 下不存在）寫在 script/mason-install.lua 的檔頭。
+  # 用 NVIM_CONFIG 而非 SCRIPT_DIR：本腳本可能是 curl | bash 執行的（BASH_SOURCE
+  # 不是真實路徑），此時設定已在步驟 2 部署到 NVIM_CONFIG。
+  MASON_LUA="$NVIM_CONFIG/script/mason-install.lua"
+  if [[ -f "$MASON_LUA" ]]; then
+    info "安裝 LSP server / formatter（可能需要數分鐘）..."
+    nvim --headless -c "luafile $MASON_LUA" 2>&1 \
+      && success "LSP / formatter 安裝完成" \
+      || warn "部分套件未裝完，可在 nvim 內重跑 :MasonInstallAll"
+  else
+    warn "找不到 $MASON_LUA，請在 nvim 內手動執行 :MasonInstallAll"
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────

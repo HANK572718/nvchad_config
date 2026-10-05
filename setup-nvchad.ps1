@@ -5,7 +5,8 @@
 
 .DESCRIPTION
     讓任何一台全新 Windows 機器一行指令裝好完整的 nvim 開發環境。流程：
-      1. 確保 git 與 Neovim 已安裝（缺則用 winget 裝）。
+      1. 確保 git 與 Neovim 已安裝（缺則用 winget 裝）。Neovim 釘在 $NvimVersion
+         （0.11.x）並下 winget pin —— nvim-treesitter master 分支不支援 0.12。
       2. 用 git + HTTPS 把本設定 clone 到 %LOCALAPPDATA%\nvim
          （已存在則先備份；GitHub 為公開 repo，不需 SSH 金鑰）。
       3. 呼叫 clone 下來的 window_tool_script\install-msys2.ps1，安裝 MSYS2
@@ -66,6 +67,16 @@ $GitHubUser = "HANK572718"
 $GitHubRepo = "nvchad_config"
 $RepoHttps  = "https://github.com/$GitHubUser/$GitHubRepo.git"
 
+# ── Neovim 釘版 ───────────────────────────────────────────────
+# 為什麼不裝最新版：nvim-treesitter 的 master 分支已於 2026-04 封存，README 明確
+# 寫「Neovim 0.10 or 0.11（0.12 is not supported）」。Neovim 0.12 移除了
+# vim.treesitter.query.add_directive 的 all=false 相容層，directive handler 收到的
+# 變成節點「陣列」而非單一節點，開含 fenced code block 的 markdown 會噴
+# "attempt to call method 'range' (a nil value)"（image.nvim / foldexpr 都會踩）。
+# 詳見 docs/development-notes/08151555-treesitter-0.12-directive-breaking-change.md
+# 日後若整份 config 遷移到 nvim-treesitter main 分支，把這個字串改掉即可。
+$NvimVersion = "0.11.7"
+
 # ── 輸出小工具 ────────────────────────────────────────────────
 function Write-Step { param([string]$m) Write-Host ""; Write-Host "== $m ==" -ForegroundColor Cyan }
 function Write-Ok   { param([string]$m) Write-Host "  [OK] $m"   -ForegroundColor Green }
@@ -95,6 +106,56 @@ function Install-IfMissing {
     }
 }
 
+# 取得目前 PATH 上的 nvim 版本號（例 "0.11.7"）；沒裝或抓不到則回傳 $null。
+function Get-NvimVersion {
+    $cmd = Get-Command nvim -ErrorAction SilentlyContinue
+    if (-not $cmd) { return $null }
+    try {
+        $line = (& $cmd.Source --version 2>$null | Select-Object -First 1)
+        if ($line -match 'NVIM v([0-9]+\.[0-9]+\.[0-9]+)') { return $Matches[1] }
+    } catch { }
+    return $null
+}
+
+# 安裝「釘定版本」的 Neovim。
+# 與 Install-IfMissing 的差別：後者只看指令在不在，已裝的 0.12 會被當成合格放行 ——
+# 那正是這次 markdown crash 的成因，所以 Neovim 必須走這個版本感知的路徑。
+# 註：winget 原生指令的輸出會混進函式回傳值，故一律導向 Out-Host。
+function Install-NeovimPinned {
+    param([string]$Version)
+
+    $cur = Get-NvimVersion
+    if ($cur -eq $Version) {
+        Write-Ok "Neovim v$Version already installed (pinned)"
+        return $true
+    }
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Fail "Neovim v$Version required but winget unavailable. Install it manually."
+        return $false
+    }
+    if ($cur) {
+        # winget 不會自動降版，必須先移除現有版本（例如 0.12.x）。
+        Write-Warn "Neovim v$cur found; removing it so v$Version can be pinned..."
+        try { winget uninstall -e --id Neovim.Neovim --silent | Out-Host }
+        catch { Write-Warn "winget uninstall failed: $_" }
+    }
+    Write-Warn "Installing Neovim v$Version via winget..."
+    try {
+        winget install -e --id Neovim.Neovim --version $Version `
+            --accept-source-agreements --accept-package-agreements | Out-Host
+    }
+    catch {
+        Write-Fail "winget install of Neovim v$Version failed: $_"
+        return $false
+    }
+    # 擋掉日後 `winget upgrade --all` 把 Neovim 帶回 0.12。
+    try { winget pin add -e --id Neovim.Neovim | Out-Host }
+    catch { Write-Warn "winget pin add failed; a future upgrade may bump Neovim off v$Version." }
+
+    Write-Ok "Neovim v$Version installed and pinned."
+    return $true
+}
+
 Write-Host "============================================" -ForegroundColor Magenta
 Write-Host "  NvChad Windows one-shot installer" -ForegroundColor Magenta
 Write-Host "  repo   : $RepoHttps" -ForegroundColor Magenta
@@ -107,8 +168,8 @@ Write-Host "============================================" -ForegroundColor Magen
 # =============================================================
 Write-Step "Step 1: ensuring git and Neovim are installed"
 
-$gitOk  = Install-IfMissing -Command "git"  -WingetId "Git.Git"        -DisplayName "Git"
-$nvimOk = Install-IfMissing -Command "nvim" -WingetId "Neovim.Neovim"  -DisplayName "Neovim"
+$gitOk  = Install-IfMissing -Command "git"  -WingetId "Git.Git" -DisplayName "Git"
+$nvimOk = Install-NeovimPinned -Version $NvimVersion
 
 if (-not $gitOk) { Write-Fail "git is required to clone the config. Aborting."; exit 1 }
 
@@ -246,6 +307,24 @@ if (-not $SkipSync) {
         Write-Warn "Running headless Lazy sync (may take 2-5 minutes)..."
         & $nvimExe --headless "+Lazy! sync" +qa 2>&1 | Out-Null
         Write-Ok "Plugin sync done."
+
+        # LSP server / formatter / DAP 安裝。
+        # mason.nvim 沒有 ensure_installed 選項，清單掛在 lua/chadrc.lua 的
+        # M.mason.pkgs（= nvconfig.mason.pkgs），由這支腳本實際安裝。少了這步，
+        # 開專案時會噴 "Spawning language server ... failed"。詳細的坑（非同步安裝
+        # 被提前終止、:MasonInstallAll 在 headless 下不存在）寫在
+        # script/mason-install.lua 的檔頭。
+        $masonLua = Join-Path $NvimConfig "script\mason-install.lua"
+        if (Test-Path $masonLua) {
+            Write-Warn "Installing LSP servers / formatters (may take a few minutes)..."
+            # luafile 吃正斜線比較不會被反斜線跳脫咬到
+            $masonLuaFwd = $masonLua -replace '\\', '/'
+            & $nvimExe --headless -c "luafile $masonLuaFwd" 2>&1 | Out-Host
+            if ($LASTEXITCODE -eq 0) { Write-Ok "LSP / formatter install done." }
+            else { Write-Warn "Some packages incomplete; run :MasonInstallAll inside nvim." }
+        } else {
+            Write-Warn "mason-install.lua not found; run :MasonInstallAll inside nvim."
+        }
     } else {
         Write-Warn "nvim not resolvable yet. Open a NEW terminal and run: nvim +'Lazy! sync' +qa"
     }
@@ -261,6 +340,6 @@ Write-Host "============================================" -ForegroundColor Green
 Write-Host "  Done. Open a NEW terminal, then run: nvim" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  Next inside nvim: :MasonInstall pyright black isort debugpy" -ForegroundColor Cyan
+Write-Host "  If any LSP is missing, run inside nvim: :MasonInstallAll" -ForegroundColor Cyan
 Write-Host "  Keys: <Space>ff find files   <Space>fw live grep   <F5> debug" -ForegroundColor Cyan
 Write-Host ""

@@ -71,10 +71,21 @@ return {
     end,
   },
   -- Mason：統一管理 LSP server、formatter、linter 的安裝工具
+  --
+  -- 注意：mason.nvim **沒有** ensure_installed 這個選項（只吃 ui / PATH /
+  -- install_root_dir 之類的設定）。這裡原本掛了一份 configs/mason.lua 列 13 個工具，
+  -- 但那串會被 mason.setup() 靜默丟掉，實際上一個都不會裝 —— tailwindcss-language-server
+  -- 找不到而噴 "Spawning language server ... failed" 就是這樣來的。該檔已移除。
+  --
+  -- 正確機制是 NvChad ui 外掛提供的 `:MasonInstallAll`（lua/nvchad/au.lua:51），
+  -- 它從 vim.lsp._enabled_configs（即 configs/lspconfig.lua 的 vim.lsp.enable()）
+  -- 加上 lspconfig 與 conform 的 formatter 清單自動推導要裝什麼 —— 單一事實來源就是
+  -- 那些設定本身，不需要再手維護第二份清單（原本那份也早已與實際設定脫節）。
+  -- 三個安裝腳本已在 Lazy sync 之後自動跑一次 :MasonInstallAll。
   {
     "williamboman/mason.nvim",
     lazy = false,
-    opts = require "configs.mason",  -- 確保安裝：pyright, black, isort, debugpy
+    opts = {},
   },
   -- Mason 與 lspconfig 的橋接層（自動設定已安裝的 LSP server）
   {
@@ -104,6 +115,45 @@ return {
     end,
   },
 
+  -- =============================================================
+  -- render-markdown.nvim: 在 buffer 內直接渲染 markdown（可邊看邊編輯）
+  -- =============================================================
+  -- 與上面 markdown-preview.nvim 的分工：
+  --   markdown-preview → 另開瀏覽器看完整渲染（適合最終確認、分享）
+  --   render-markdown  → 就在 nvim buffer 裡渲染（適合日常編輯）
+  --
+  -- 關鍵特性是 modal rendering：平常顯示渲染後的樣子（標題放大、清單變符號、
+  -- 表格對齊、程式碼區塊加底），游標移到哪一行、那一行就自動還原成原始
+  -- markdown 語法讓你編輯（anti-conceal）。所以「預覽」與「編輯」不用切模式。
+  --
+  -- 需求都已滿足：nvim >= 0.10（本機 0.11.7）、treesitter 的 markdown 與
+  -- markdown_inline parser（已裝）、icon provider（nvim-web-devicons，NvChad 內建）。
+  {
+    "MeanderingProgrammer/render-markdown.nvim",
+    dependencies = {
+      "nvim-treesitter/nvim-treesitter",
+      "nvim-tree/nvim-web-devicons",
+    },
+    ft = { "markdown" },
+    opts = {
+      -- 在這些模式下渲染；插入模式(i)刻意不列，打字時看原始語法比較好對齊。
+      render_modes = { "n", "c", "t" },
+      -- 游標所在行還原成原始語法，方便直接改
+      anti_conceal = { enabled = true },
+      code = {
+        -- 程式碼區塊加底色與語言標籤
+        width = "block",
+        min_width = 45,
+        border = "thin",
+      },
+      heading = {
+        -- 標題用 icon + 底色，不要佔滿整行寬度
+        width = "block",
+        min_width = 45,
+      },
+    },
+  },
+
 
   -- test new blink
   -- { import = "nvchad.blink.lazyspec" },
@@ -116,6 +166,12 @@ return {
     "nvim-treesitter/nvim-treesitter",
     branch = "master",
     build = ":TSUpdate",
+    -- 必須明寫 main：lazy.nvim 的 get_main() 會用 normname 比對，"nvim-treesitter"
+    -- 剛好命中 lua/nvim-treesitter.lua，於是呼叫 require("nvim-treesitter").setup(opts)
+    -- —— 但 master 分支那個 M.setup() 不吃任何參數（只註冊 commands），導致下方
+    -- ensure_installed / highlight.enable 被靜默丟掉：parser 一個都不會裝、
+    -- treesitter 高亮完全沒生效。指到 nvim-treesitter.configs 才是正確入口。
+    main = "nvim-treesitter.configs",
     init = function()
       -- 雙重保險：把 bootstrap 偵測到的原生編譯器釘進 compilers 第一順位，
       -- 避免 lazy 載入時序讓 $CC 沒被讀到、或 treesitter 預設清單挑到 Cygwin
@@ -255,13 +311,40 @@ return {
     cond = function() return vim.fn.has("win32") == 0 end,
     lazy = true,
     event = "BufEnter",
+    -- build = false：阻止 lazy 用 hererocks 去編 magick luarock。
+    -- 那個 rock 需要 ImageMagick 的 **development** 版與 pkg-config 才建得起來
+    -- （本機實測 require("magick") 會噴 "Failed to load ImageMagick (MagickWand)"，
+    -- 因為缺 pkg-config）。但 image.nvim 預設就走 magick_cli 處理器、根本不用它，
+    -- 所以與其修那個 rock，不如別建。見下方 processor 設定。
+    build = false,
     opts = function()
       return {
         backend = (function()
           if vim.fn.executable("ueberzug") == 1 then return "ueberzug" end
           return "kitty"
         end)(),
-        integrations = { telescope = { enabled = true } },
+
+        -- 走 ImageMagick CLI（magick / identify），不用 FFI rock。
+        -- 這本來就是 image.nvim 的預設值，明寫是為了搭配上面的 build = false
+        -- 表達意圖：我們刻意不依賴 luarock。
+        processor = "magick_cli",
+
+        -- 在 tmux 裡必須用 unicode placeholders。
+        -- Kitty 的「舊」放置方式（kitty_method = "normal"，預設值）需要終端直接
+        -- 掌握游標位置，隔著 tmux 會對不上，圖就畫不出來 —— yazi 官方文件也是
+        -- 同一個結論（"Kitty old protocol doesn't work under tmux due to the
+        -- limitations of the protocol itself"），所以它在 tmux 下也自動改用
+        -- placeholders。代價是失去 crop 能力（backends/kitty/init.lua:35）。
+        kitty_method = "unicode-placeholders",
+
+        -- 註：不要整包覆寫 integrations —— setup 用 tbl_deep_extend("force", ...)
+        -- 深度合併，只列想改的鍵即可，markdown 等預設整合會保留。
+        -- （原本這裡寫 telescope = { enabled = true }，但這版 image.nvim 的
+        --   integrations/ 目錄裡沒有 telescope，那是無效設定，已移除。）
+        integrations = {
+          markdown = { enabled = true },
+        },
+
         max_width = 100,
         max_height = 40,
       }

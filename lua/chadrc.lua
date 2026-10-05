@@ -201,4 +201,33 @@ M.term = {
   },
 }
 
+-- ── Mason：要自動安裝的 LSP server / formatter / DAP ──────────────
+-- 這份清單原本放在 lua/configs/mason.lua 並掛成 mason.nvim 的 opts，但
+-- **mason.nvim 沒有 ensure_installed 這個選項**，整串會被 mason.setup() 靜默丟掉
+-- —— 一個都不會裝。tailwindcss-language-server 找不到而噴
+-- "Spawning language server ... failed" 就是這樣來的。
+--
+-- NvChad 真正讀的是這裡的 nvconfig.mason.pkgs（lazy/ui/lua/nvconfig.lua:108），
+-- 由 :MasonInstallAll 實際安裝；它還會再自動補上 configs/lspconfig.lua 裡
+-- vim.lsp.enable() 啟用的 server 與 conform 的 formatter。
+M.mason = {
+  pkgs = {
+    -- Python
+    "pyright",
+    "black",
+    "isort",
+    "debugpy",
+
+    -- JavaScript / TypeScript
+    "typescript-language-server",
+    "eslint-lsp",
+    "emmet-language-server",
+    "tailwindcss-language-server",
+    "css-lsp",
+    "html-lsp",
+    "json-lsp",
+    "prettier",
+  },
+}
+
 return M

@@ -67,20 +67,34 @@ local function lan_ipv4s()
   return out
 end
 
---- 從 start 起找第一個真正空的 port。
+--- 檢查單一 host:port 是否能 bind+listen（= 目前真的空）。
 --- 注意：libuv 的 bind() 預設帶 SO_REUSEADDR，單獨 bind 不會報衝突，
 --- 必須再 listen() 才能偵測到 port 已被其他 server 佔用。
+--- @param host string  綁定位址（"0.0.0.0" 或 "127.0.0.1"）。
+--- @param p integer    port。
+--- @return boolean     true = 該 host:port 目前可用。
+local function port_free_on(host, p)
+  local tcp = vim.uv.new_tcp()
+  local ok = pcall(function()
+    assert(tcp:bind(host, p))
+    assert(tcp:listen(1, function() end))
+  end)
+  pcall(function() tcp:close() end)
+  return ok
+end
+
+--- 從 start 起「依序」找第一個真正空的 port（被佔用就往後一格）。
+--- 同時檢查 0.0.0.0（filebrowser 綁的萬用位址）與 127.0.0.1（vim.ui.open 開的
+--- URL 走 localhost）；兩者皆可 bind 才算空。這樣才偵測得到「只綁 127.0.0.1 的
+--- SSH 隧道」（例如 nh02web 的 -L 8000）——若只測 0.0.0.0，會因 SO_REUSEADDR 與
+--- 隧道的單一位址綁定不衝突而誤判為空，導致開出來的 localhost URL 被隧道攔走。
 --- @param start integer 起始 port。
---- @return integer 第一個空的 port（找不到則回傳 start）。
+--- @return integer 第一個真正空的 port（找不到則回傳 start）。
 local function find_free_port(start)
   for p = start, start + 50 do
-    local tcp = vim.uv.new_tcp()
-    local ok = pcall(function()
-      assert(tcp:bind("0.0.0.0", p))
-      assert(tcp:listen(1, function() end))
-    end)
-    pcall(function() tcp:close() end)
-    if ok then return p end
+    if port_free_on("0.0.0.0", p) and port_free_on("127.0.0.1", p) then
+      return p
+    end
   end
   return start
 end
@@ -147,8 +161,9 @@ function M.serve(dir, opts)
     return
   end
 
-  -- -r 指定服務的資料夾、-p 自動找空 port（避免撞 port）、-a 綁 0.0.0.0
-  local port = opts.port or find_free_port(8000)
+  -- -r 指定服務的資料夾、-p 自動找空 port、-a 綁 0.0.0.0
+  -- 起始 port 避開 8000（常被 SSH 隧道等佔用），從 8001 起依序往後找第一個真正空的。
+  local port = opts.port or find_free_port(8001)
   local job = vim.fn.jobstart(
     { fb, "-d", DB, "-r", dir, "-a", "0.0.0.0", "-p", tostring(port) },
     {

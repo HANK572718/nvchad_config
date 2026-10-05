@@ -28,9 +28,16 @@ end
 -- =============================================================
 -- 覆蓋 NvChad 預設的 terminal <C-x>（原綁定為「跳出 terminal 模式」）
 -- 改為「透傳 Ctrl+X 給終端內程式」，讓 Claude Code 等程式能收到 <C-x>
--- 跳出 terminal 模式請改用內建的 <C-\><C-n>
+--（例如 cc 的 agents view 用 Ctrl-X 取消 agent）。跳出 terminal 模式請改用 <C-\><C-n>。
+--
+-- 修正：舊寫法 "<C-v><C-x>" 會先送出 <C-v>，而 Claude Code 把 Ctrl-V 當成「貼上」，
+--       導致按 Ctrl-X 變貼上。改用 chansend 直接送「原始 Ctrl-X 位元組 0x18」給
+--       terminal job，不再夾帶 Ctrl-V。
 -- =============================================================
-map("t", "<C-x>", "<C-v><C-x>", { desc = "Send Ctrl-X to terminal program (e.g. Claude Code)" })
+map("t", "<C-x>", function()
+  local chan = vim.b.terminal_job_id
+  if chan then vim.fn.chansend(chan, "\24") end -- "\24" = 十進位 24 = 0x18 = Ctrl-X
+end, { desc = "Send raw Ctrl-X to terminal program (e.g. Claude Code)" })
 
 -- Alt+i：tab-local 浮動終端，覆蓋 NvChad 預設的全域 "floatTerm"
 -- 原理：id 加入 tabpage handle，讓每個 tab 在 g.nvchad_terms 有獨立 entry

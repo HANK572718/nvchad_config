@@ -1,0 +1,56 @@
+# =====================================================
+# yazi.toml — 終端檔案瀏覽 / 多格式預覽（此 repo 的 single source of truth）
+# 由 script/setup-macos.sh 部署為 ~/.config/yazi 的 symlink
+#
+# 目標格式：圖片 / pdf / md / csv / xlsx / docx / pptx
+# 設計原則：不裝 LibreOffice。office 類走「抽文字」而非「轉圖」，
+#          依賴總和 < 100MB（相對於 LibreOffice 的 GB 級）。
+#
+# 誰負責什麼：
+#   圖片   → yazi 內建 image 預覽器（Ghostty 走 Kitty unicode placeholders）
+#   pdf    → yazi 內建 pdf 預覽器（呼叫 pdftoppm，poppler 提供）
+#   md     → yazi 內建 code 預覽器（語法高亮的原始碼；要渲染版另開 `glow`）
+#   csv    → 本 repo 的 office 外掛（column 對齊成表格）
+#   xlsx   → 本 repo 的 office 外掛（xlsx2csv → column）
+#   docx   → 本 repo 的 office 外掛（pandoc → markdown）
+#   pptx   → 本 repo 的 office 外掛（unzip + sed 抽 <a:t>，零額外依賴）
+#
+# ⚠️ tmux 前提：Ghostty 不支援 Sixel，只走 Kitty 協定；而 Kitty 舊協定在 tmux 下
+#    無法運作，yazi 會自動改用 Kitty unicode placeholders。這需要 tmux 端開
+#    allow-passthrough 並轉發 TERM / TERM_PROGRAM —— 已寫在
+#    script/devtools/tmux.conf，改完需 `tmux kill-server` 才生效。
+#    用 `ya env` 可以確認目前實際採用的協定。
+# =====================================================
+
+[plugin]
+# prepend 而非 previewers：只覆寫這幾種副檔名，其餘一律沿用 yazi 的預設規則
+# （圖片 / pdf / 影片 / 壓縮檔 / json / 純文字都不用自己重寫）。
+#
+# 註：yazi 26.x 的比對欄位是 `url`（不是舊文件寫的 `name`）——
+# 用 name 會噴 "at least one of `url` or `mime` must be specified"。
+prepend_previewers = [
+  { url = "*.docx", run = "office" },
+  { url = "*.xlsx", run = "office" },
+  { url = "*.pptx", run = "office" },
+  { url = "*.csv",  run = "office" },
+]
+
+[opener]
+# 表格類要「操作」而不是「看」時，用 VisiData 開 —— 可搜尋 / 排序 / 篩選，
+# 這是圖片式預覽做不到的。
+table = [
+  { run = 'vd "$@"', desc = "VisiData 開啟表格", block = true },
+]
+# markdown 渲染版
+markdown = [
+  { run = 'glow -p "$@"', desc = "glow 渲染 markdown", block = true },
+]
+
+[open]
+# 註：yazi 26.x 的 [open] 規則欄位是 `url`（不是 `name`）——
+# 用 name 會噴 "at least one of `url` or `mime` must be specified"。
+prepend_rules = [
+  { url = "*.csv",  use = "table" },
+  { url = "*.xlsx", use = "table" },
+  { url = "*.md",   use = "markdown" },
+]

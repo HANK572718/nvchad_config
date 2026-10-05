@@ -54,6 +54,32 @@
 
 模組依賴 `filebrowser` 執行檔,**優先找 PATH,退回 `~/.local/bin/filebrowser`**。這個 binary 不在本 repo 內,clone 設定後需自行安裝一次。
 
+> ⚠️ **上游已停止維護（2026-08 查證）**
+>
+> File Browser 官方宣布結束專案:**v2.63.23（2026-07-27）是最後一個版本**,repo 於
+> **2026-09-01 封存**,之後不再有任何 release、bug fix 或安全性修補。
+>
+> 官方同時聲明「Existing releases and Docker images stay online and will not be
+> withdrawn」——**既有 release 不會下架**,所以本文所有安裝方式（含 `releases/latest`）
+> 現在與日後都仍可用,只是版本會永遠停在 2.63.23。
+>
+> 本模組用到的 CLI（`config init` / `config set --auth.method=noauth` / `users add`）
+> 已在 2.63.23 實測相容。若日後要換掉 filebrowser,受影響的是
+> `lua/configs/web_media.lua` 的 `ensure_db()` 與 bbolt 單寫鎖處理。
+
+### macOS — Homebrew（最省事）
+
+```bash
+brew install filebrowser
+filebrowser version    # 驗證
+```
+
+`script/setup-macos.sh` 的**選配套件**清單已含 `filebrowser`;若當初帶了 `--minimal`
+就不會裝到,補跑上面那行即可（或重跑不帶 `--minimal` 的安裝腳本）。
+
+> 同一份腳本的選配清單還有 `imagemagick` / `chafa`——那是 **image.nvim** 的相依。
+> 只裝 `magick` luarock 而少了 ImageMagick 本體,圖片預覽會是空殼。
+
 ### Linux（含 Jetson aarch64）— 手動放到 ~/.local/bin
 
 到 [filebrowser releases](https://github.com/filebrowser/filebrowser/releases/latest) 下載對應平台的壓縮檔,解出 `filebrowser` 放進 `~/.local/bin`:
