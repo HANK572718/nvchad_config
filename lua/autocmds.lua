@@ -156,12 +156,4 @@ if vim.fn.has("win32") == 1 and vim.env.SSH_CLIENT then
       io.stdout:write("\27[0m\27[2J\27[H")
     end,
   })
-
-  -- 同一個原因，滑鼠事件也進不來：Mac 端 tmux（script/devtools/tmux.conf）把滾輪翻成
-  -- Ctrl-Down / Ctrl-Up 送過來，這裡把它們當滾輪用，各捲 3 行；插入模式也不離開。
-  local function scroll(keys)
-    return function() vim.cmd("normal! 3" .. vim.keycode(keys)) end
-  end
-  vim.keymap.set({ "n", "v", "i" }, "<C-Down>", scroll("<C-e>"), { desc = "SSH 滾輪：往下捲" })
-  vim.keymap.set({ "n", "v", "i" }, "<C-Up>", scroll("<C-y>"), { desc = "SSH 滾輪：往上捲" })
 end
