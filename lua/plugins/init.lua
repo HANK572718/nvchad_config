@@ -378,6 +378,8 @@ return {
   {
     "3rd/diagram.nvim",
     dependencies = { "3rd/image.nvim" },
+    -- 與 image.nvim 同條件：Windows 上 image.nvim 不載入，diagram 一 require("image") 就噴錯
+    cond = function() return vim.fn.has("win32") == 0 end,
     ft = { "markdown" },
     opts = {
       renderer_options = {
