@@ -130,3 +130,18 @@ vim.api.nvim_create_autocmd("TermOpen", {
     end)
   end,
 })
+
+-- ── Windows + SSH：離開時清掉殘留背景 ──────────────────────────────────
+-- Win10 內建 OpenSSH 8.1 走舊 ConPTY，不轉送「備用畫面」(smcup/rmcup)，
+-- nvim 結束後畫面不會切回原本的 shell 畫面，殘留 colorscheme 的背景色，
+-- 之後 shell 的字被同色背景蓋住。離開前把 Normal 背景改回終端預設並重繪，
+-- 再送「重設 SGR + 清畫面 + 游標歸位」，殘留的就是預設背景。
+if vim.fn.has("win32") == 1 and vim.env.SSH_CLIENT then
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    callback = function()
+      pcall(vim.api.nvim_set_hl, 0, "Normal", { bg = "NONE", ctermbg = "NONE" })
+      pcall(vim.cmd, "redraw!")
+      io.stdout:write("\27[0m\27[2J\27[H")
+    end,
+  })
+end
