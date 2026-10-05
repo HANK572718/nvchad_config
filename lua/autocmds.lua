@@ -10,6 +10,18 @@ vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
   end,
 })
 
+-- XAML（WPF / WinUI / MAUI）與 Avalonia 的 .axaml：保留獨立 filetype（之後接 XAML LSP 用），
+-- 高亮借用 xml parser —— treesitter 沒有專屬的 XAML parser，而 XAML 本質就是 XML。
+-- .NET 專案的 MSBuild / 資源檔同樣是 XML，直接歸到 xml。
+vim.filetype.add({
+  extension = {
+    xaml = "xaml", axaml = "xaml",
+    csproj = "xml", vbproj = "xml", fsproj = "xml", props = "xml", targets = "xml",
+    resx = "xml", nuspec = "xml", manifest = "xml", config = "xml", xsd = "xml",
+  },
+})
+vim.treesitter.language.register("xml", { "xaml" })
+
 -- auto-session 還原 session 後，強制統一 foldexpr 為 v:lua.vim.treesitter.foldexpr()
 -- 避免舊 session 殘留其他 foldexpr 值（如 nvim_treesitter#foldexpr()）導致 zM 無效
 vim.api.nvim_create_autocmd("SessionLoadPost", {

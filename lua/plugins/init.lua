@@ -201,6 +201,15 @@ return {
         "markdown", "markdown_inline", "json", "jsonc", "yaml", "toml",
         -- Web 相關
         "html", "css", "javascript", "typescript", "tsx", "jsdoc",
+        -- .NET / Windows：XAML 與 csproj/resx 都走 xml parser（XAML 沒有專屬 parser，
+        -- 對應寫在 autocmds.lua 的 vim.treesitter.language.register）
+        "xml", "powershell",
+        -- C / C++ / CUDA 與建置
+        "c", "cpp", "cuda", "cmake", "make",
+        -- 資料 / 查詢
+        "sql", "csv", "ini", "http",
+        -- Git
+        "diff", "git_config", "gitcommit", "git_rebase", "gitattributes",
         -- 其他
         "dockerfile", "gitignore", "regex",
       },
