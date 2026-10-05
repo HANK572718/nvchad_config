@@ -87,7 +87,8 @@ return {
     lazy = false,
     opts = {
       -- roslyn( C# LSP) 不在官方registry, 要加Crashdummyy 的; 順序不能換，官方放第一個
-      registry = {
+      -- 鍵名必須是 registries（複數）：寫成 registry 會被 mason 靜默忽略，Crashdummyy 永遠沒載入
+      registries = {
         "github:mason-org/mason-registry",
         "github:Crashdummyy/mason-registry",
       }
