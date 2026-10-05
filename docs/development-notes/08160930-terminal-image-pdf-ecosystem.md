@@ -176,7 +176,81 @@ csv  → 姓名
 `allow-passthrough on` + 轉發 `TERM` / `TERM_PROGRAM`。
 **必須 `tmux kill-server` 才生效**，reload 不夠。
 
-## 八、待辦
+## 八、nvim 端補完（2026-08-19，已實測）
+
+原本 A 路線只做 yazi。後續把 nvim 端（B 路線）也補上，兩者並存不衝突。
+
+### 圖片：kitty_method 是關鍵
+
+`nvim x.jpg` 一開始是**完全空白的 buffer**（hijack 有作用、buffer 被清空，但圖沒畫出來）。
+排除過程（每一項都實測，不是推測）：
+
+| 嫌疑 | 結果 |
+|---|---|
+| magick luarock 載入失敗（`pkg-config` 缺，MagickWand 載不到） | ❌ 不是。`processor` 預設就是 `magick_cli`，那個 rock 根本沒被使用 |
+| tmux passthrough 沒被偵測到 | ❌ 不是。`tmux show -Apv allow-passthrough` 回傳精確的 `on\n`，符合 `utils/tmux.lua:9` 的判斷 |
+| lazy 載入時序（`event = "BufEnter"` 晚於 hijack 的 autocmd） | ❌ 不是。hijack 掛在 `WinNew`/`BufWinEnter`/`TabEnter`，從 nvim-tree 開檔時外掛早已載入 |
+| **`kitty_method = "normal"`（預設）在 tmux 下** | ✅ **就是這個** |
+
+Kitty 的「舊」放置方式需要終端直接掌握游標位置，隔著 tmux 會對不上。
+改 `kitty_method = "unicode-placeholders"` 後**實機確認可正常顯示**。
+這與 yazi 官方文件同一結論（"Kitty old protocol doesn't work under tmux due to the
+limitations of the protocol itself"），yazi 在 tmux 下也是自動改用 placeholders。
+代價：失去 crop 能力（`backends/kitty/init.lua:35`）。
+
+同時修掉 image.nvim README「Tmux」章節要求四項中缺的一項：`focus-events on`
+（原本是 off）。並清掉無效的 `integrations = { telescope = ... }` —— 這版
+image.nvim 的 `integrations/` 目錄裡沒有 telescope；`setup` 用
+`tbl_deep_extend("force", ...)` 深度合併，所以它只是個沒人讀的鍵，不會蓋掉 markdown。
+另加 `build = false`，不再讓 lazy 反覆去建那個建不起來的 luarock。
+
+### markdown：render-markdown.nvim
+
+`ft = markdown`，modal rendering —— 平常顯示渲染結果，游標所在行自動還原成原始語法
+（anti-conceal），所以預覽與編輯不用切模式。實測在 buffer 上產生 **26 個 extmark**
+（18 virt_text / 3 conceal / 2 highlight），`conceallevel` 自動設為 3。
+
+與既有 `markdown-preview.nvim` 分工：後者另開瀏覽器看完整版，前者就在 buffer 內。
+
+**內嵌圖片** `![](x.png)` 由 image.nvim 的 markdown 整合處理，實測 treesitter query
+`(image (link_destination) @url)` 正確抓到目標。
+
+### mermaid：render-markdown 做不到，要 diagram.nvim
+
+`render-markdown.nvim` 原始碼裡完全沒有 mermaid/diagram 實作（grep 無結果），
+```mermaid 對它只是普通程式碼區塊。真正畫成圖要 `3rd/diagram.nvim`（與 image.nvim
+同作者，複用其 Kitty 輸出）+ `mmdc`。
+
+實測 diagram.nvim 產出 `~/.cache/nvim/diagram-cache/mermaid/<sha>.png`（216×556）。
+
+⚠️ `mmdc` 靠 puppeteer 驅動 headless Chromium，體積不小。
+⚠️ `npm i -g` 裝到「當前 node 版本」的 bin，用 nvm 切換 node 後會不在 PATH，需重裝。
+
+### office / pdf：BufReadCmd 接管讀檔
+
+新增 `lua/configs/office_preview.lua`。用 `BufReadCmd` **取代** nvim 預設讀檔，
+所以二進位亂碼（`PK^C^D...docProps/app.xml`）根本不會進 buffer。
+
+| 格式 | 管線 | 設定的 ft |
+|---|---|---|
+| docx | `pandoc -t markdown --wrap=none` | markdown（讓 render-markdown 接手）|
+| xlsx | `xlsx2csv \| column -s, -t` | text |
+| pptx | `unzip` + `sed` 抽 `<a:t>` | markdown |
+| pdf | `pdftotext -layout` | text |
+
+與 yazi 的 `office.yazi` 共用同一組管線。buffer 一律設 `buftype = nowrite` +
+`nomodifiable` —— 否則不小心 `:w` 會用純文字覆蓋原始 docx/xlsx，直接毀檔。
+
+實測四種格式都正確抽出內容、ft 與保護旗標都對。
+
+**限制**：只抽文字，看不到版面配置。要看排版用系統程式開；要操作表格用 `vd`。
+
+### 影片：ffmpeg
+
+yazi 顯示 `Failed to start ffprobe` —— 就是沒裝 ffmpeg。裝完後 `ffprobe` 對實際檔案
+（2294×1530 h264, 797s）讀取正常。
+
+## 九、待辦
 
 - [ ] 決定要不要為看圖調整 tmux 使用習慣（或只在非 tmux 分頁看圖）
 - [ ] `configs/ghostty.config` 是否需要為圖形協定加設定（待查，預設應該就能用）

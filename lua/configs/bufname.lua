@@ -125,14 +125,28 @@ local function make_style_buf()
       end
     end
 
-    -- padding around bufname; 15= maxnamelen + 2 icon & space + 2 close icon
-    local pad = math.floor((w - #name - 5) / 2)
+    -- CJK 安全截斷：以顯示寬度(strdisplaywidth)為準，並用 strcharpart 以「字元」切，
+    -- 避免像 string.sub 那樣切在多位元組字中間，產生 <e7>/<e6> 半截亂碼。
+    local maxname_len = w - 5
+    if vim.fn.strdisplaywidth(name) > maxname_len then
+      local budget = maxname_len - 2 -- 留 2 欄給 ".."
+      local kept = ""
+      for i = 1, vim.fn.strchars(name) do
+        local sub = vim.fn.strcharpart(name, 0, i)
+        if vim.fn.strdisplaywidth(sub) > budget then
+          break
+        end
+        kept = sub
+      end
+      name = kept .. ".."
+    end
+
+    -- padding 依「顯示寬度」置中（CJK 一字佔 2 欄），非位元組長度
+    local dw = vim.fn.strdisplaywidth(name)
+    local pad = math.floor((w - dw - 5) / 2)
     pad = pad <= 0 and 1 or pad
 
-    local maxname_len = w - 5
-    name = string.sub(name, 1, maxname_len - 2) .. (#name > maxname_len and ".." or "")
     name = txt(name, tbHlName)
-
     name = strep(" ", pad - 1) .. (icon_hl .. icon .. name) .. strep(" ", pad - 1)
 
     local close_btn = btn(" 󰅖 ", nil, "KillBuf", nr)
@@ -224,6 +238,55 @@ function M.get_name(buf)
     return nil
   end
   return vim.b[buf].display_name
+end
+
+--- 找出這個 buffer 的 terminal 裡跑的 Claude Code session（給 :Reb 拉/推站台名用）。
+--- 作法：從 b:terminal_job_pid 往子孫程序找，哪個 pid 有 ~/.claude/sessions/<pid>.json
+--- 就是它。回傳 {pid, sessionId, name, status, cwd}；不是 claude terminal 則回 nil。
+--- @param buf integer|nil 0 或省略=當前 buffer
+function M.resolve_cc_session(buf)
+  buf = (buf == nil or buf == 0) and api.nvim_get_current_buf() or buf
+  if not api.nvim_buf_is_valid(buf) then
+    return nil
+  end
+  local root = vim.b[buf] and vim.b[buf].terminal_job_pid
+  if not root then
+    return nil
+  end
+  -- 一次抓全部程序，建 ppid → {children} 樹
+  local children = {}
+  for _, line in ipairs(vim.fn.systemlist({ "ps", "-axo", "pid=,ppid=" })) do
+    local pid, ppid = line:match("^%s*(%d+)%s+(%d+)")
+    if pid then
+      pid, ppid = tonumber(pid), tonumber(ppid)
+      children[ppid] = children[ppid] or {}
+      table.insert(children[ppid], pid)
+    end
+  end
+  -- 從 root 往下 BFS（就近，含自己）：回傳「最淺」那個帶 sessions/<pid>.json 的 session
+  -- ＝ 這個 terminal 自己的 claude；比它更深的（子 agent / 背景衍生）不會被誤取。
+  local sess_dir = vim.fn.expand("~/.claude/sessions")
+  local seen, queue = {}, { root }
+  while #queue > 0 do
+    local pid = table.remove(queue, 1)
+    if not seen[pid] then
+      seen[pid] = true
+      local f = sess_dir .. "/" .. pid .. ".json"
+      if vim.fn.filereadable(f) == 1 then
+        local ok, lines = pcall(vim.fn.readfile, f)
+        if ok and lines then
+          local ok2, j = pcall(vim.json.decode, table.concat(lines, "\n"))
+          if ok2 and type(j) == "table" and j.sessionId then
+            return { pid = pid, sessionId = j.sessionId, name = j.name, nameSource = j.nameSource, status = j.status, cwd = j.cwd }
+          end
+        end
+      end
+      for _, c in ipairs(children[pid] or {}) do
+        queue[#queue + 1] = c
+      end
+    end
+  end
+  return nil
 end
 
 -- ── 持久化 save / restore ─────────────────────────────────────

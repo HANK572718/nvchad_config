@@ -46,6 +46,12 @@ dofile(vim.g.base46_cache .. "statusline")
 require "options"
 require "autocmds"
 
+-- office 文件（docx / xlsx / pptx / pdf）在 nvim 內以純文字開啟。
+-- 用 BufReadCmd 接管讀檔，避免二進位亂碼；轉換走 pandoc / xlsx2csv /
+-- unzip+sed / pdftotext（不需 LibreOffice）。詳見 lua/configs/office_preview.lua。
+-- pcall 包住：缺工具或平台不支援時靜默降級，不影響啟動。
+pcall(function() require("configs.office_preview").setup() end)
+
 -- 延遲載入按鍵映射（UI 完全初始化後再綁定，避免衝突）
 vim.schedule(function()
   require "mappings"

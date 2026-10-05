@@ -202,24 +202,102 @@ end, { desc = "分析當前目錄下的資料夾" })
 -- 有參數：直接設定；無參數：跳出輸入框（預填目前名稱，空輸入=清除）
 -- 核心邏輯與持久化見 lua/configs/bufname.lua
 -- =============================================================
-vim.api.nvim_create_user_command("BufRename", function(opts)
+-- vim.api.nvim_create_user_command("BufRename", function(opts)
+vim.api.nvim_create_user_command("Reb", function(opts)
   local bufname = require "configs.bufname"
-  if opts.args ~= "" then
-    bufname.set_name(0, opts.args)
-  else
-    vim.ui.input({ prompt = "Buffer 顯示名 (空=清除): ", default = bufname.get_name(0) or "" }, function(input)
-      if input == nil then return end
-      if input == "" then
-        bufname.clear_name(0)
+  local arg = opts.args
+
+  -- 帶參數：改 buffer 名；若是 claude terminal，順便把手機 Remote Control 站台名一起改
+  if arg ~= "" then
+    bufname.set_name(0, arg)
+    local sess = bufname.resolve_cc_session(0)
+    if sess then
+      if sess.status == "busy" then
+        vim.notify(("Reb：buffer 已改「%s」；session 忙碌中未推送 /rename，待 idle 再 :Reb %s"):format(arg, arg), vim.log.levels.WARN)
       else
-        bufname.set_name(0, input)
+        local chan = vim.b.terminal_job_id
+        if chan then
+          vim.fn.chansend(chan, "/rename " .. arg .. "\r")
+          vim.notify(("Reb：buffer 與手機站台已改為「%s」(session %s)"):format(arg, sess.sessionId:sub(1, 8)))
+        else
+          vim.notify(("Reb：buffer 已改「%s」（無 terminal channel，未推送）"):format(arg), vim.log.levels.WARN)
+        end
+      end
+    end
+    return
+  end
+
+  -- 不帶參數（claude terminal）：
+  --   ① session 是你命名過的（nameSource=user，/rename 或 :Reb <名> 推過）→ 無歧義，直接對齊
+  --   ② 衍生名（job-hunt-XX 這種）→ 無法偵測 fleet console 實際顯示的 session，
+  --      不猜——跳一鍵選單：CC session 名 / tmux 視窗名 / 手動輸入
+  local sess = bufname.resolve_cc_session(0)
+  if sess then
+    -- ⓪ terminal 標題最優先：CC 會把「目前顯示中的 session 名」用 OSC 寫進標題
+    --    （fleet console attach 誰就顯示誰，實測 nvimSet / career 都準）。
+    --    通用標題（✳ Claude Code、term://…）不算數，往下走。
+    local title = vim.trim(vim.b.term_title or "")
+    if title ~= ""
+      and not title:match("^term://")
+      and not title:find("Claude Code", 1, true)
+      and not title:find("✳", 1, true)
+      and not title:find("✻", 1, true)
+    then
+      bufname.set_name(0, title)
+      vim.notify(("Reb：已對齊 terminal 標題「%s」"):format(title))
+      return
+    end
+    if sess.name and sess.name ~= "" and sess.nameSource == "user" then
+      bufname.set_name(0, sess.name)
+      vim.notify(("Reb：已對齊 CC 站台名「%s」"):format(sess.name))
+      return
+    end
+    local twin
+    if vim.env.TMUX and vim.env.TMUX_PANE then
+      local out = vim.fn.systemlist({ "tmux", "display-message", "-pt", vim.env.TMUX_PANE, "#{window_name}" })
+      twin = out and out[1] and out[1]:gsub("%s+$", "") or nil
+      if twin == "" then twin = nil end
+    end
+    local items = {}
+    if sess.name and sess.name ~= "" then
+      table.insert(items, { label = sess.name .. "  (CC session)", value = sess.name })
+    end
+    if twin and twin ~= sess.name then
+      table.insert(items, { label = twin .. "  (tmux 視窗名)", value = twin })
+    end
+    table.insert(items, { label = "手動輸入…", value = false })
+    vim.ui.select(items, {
+      prompt = "Buffer 顯示名來源：",
+      format_item = function(it) return it.label end,
+    }, function(choice)
+      if not choice then return end
+      if choice.value then
+        bufname.set_name(0, choice.value)
+        vim.notify(("Reb：已設為「%s」"):format(choice.value))
+      else
+        vim.ui.input({ prompt = "Buffer 顯示名 (空=清除): ", default = bufname.get_name(0) or "" }, function(input)
+          if input == nil then return end
+          if input == "" then bufname.clear_name(0) else bufname.set_name(0, input) end
+        end)
       end
     end)
+    return
   end
-end, { nargs = "?", desc = "Buffer：設定 tabufline 自訂顯示名（空=清除）" })
+
+  vim.ui.input({ prompt = "Buffer 顯示名 (空=清除): ", default = bufname.get_name(0) or "" }, function(input)
+    if input == nil then return end
+    if input == "" then
+      bufname.clear_name(0)
+    else
+      bufname.set_name(0, input)
+    end
+  end)
+end, { nargs = "?", desc = "Buffer：claude→拉站台名 / 帶參→改名並推回手機站台" })
 
 -- <leader>br：跳出輸入框設定當前 buffer 顯示名（仿 <leader>tR tab-label 流程）
-map("n", "<leader>br", "<cmd>BufRename<cr>", { desc = "Buffer: set custom display name" })
+map("n", "<leader>br", "<cmd>Reb<cr>", { desc = "Buffer: set custom display name" })
+-- map("n", "<leader>br", "<cmd>BufRename<cr>", { desc = "Buffer: set custom display name" })
+vim.cmd [[ cnoreabbrev <expr> reb (getcmdtype() ==# ':' && getcmdpos() == 4) ? 'Reb' : 'reb' ]]
 
 -- 圖片瀏覽器：用 Telescope + chafa 預覽圖片（<leader>fp）
 map("n", "<leader>fp", function()
@@ -422,3 +500,72 @@ map("n", "<leader>nu", function() require("package-info").update() end,         
 map("n", "<leader>nd", function() require("package-info").delete() end,         { desc = "npm: delete package" })
 map("n", "<leader>ni", function() require("package-info").install() end,        { desc = "npm: install new package" })
 map("n", "<leader>nv", function() require("package-info").change_version() end, { desc = "npm: change package version" })
+
+-- =============================================================
+-- 切換圖片渲染（image.nvim；連帶 diagram/mermaid）
+-- iPad 等不支援 kitty graphics 的終端顯示一堆問號時，用這個關掉。
+-- 快捷鍵 <leader>ti，或命令 :ImageToggle。關→clear 問號且擋新渲染；開→重繪。
+-- =============================================================
+local function toggle_image_render()
+  local ok, image = pcall(require, "image")
+  if not ok then
+    vim.notify("image.nvim 尚未載入（開 markdown/圖片 buffer 後再試）", vim.log.levels.WARN)
+    return
+  end
+  if image.is_enabled() then
+    image.disable(); vim.notify("🖼️  圖片/mermaid 渲染：OFF")
+  else
+    image.enable();  vim.notify("🖼️  圖片/mermaid 渲染：ON")
+  end
+end
+map("n", "<leader>ti", toggle_image_render, { desc = "Toggle 圖片/mermaid 渲染" })
+vim.api.nvim_create_user_command("ImageToggle", toggle_image_render, {})
+
+-- =============================================================
+-- :Mdp / <leader>mp — 啟動 MarkdownPreview 並列出「連得到」的網址
+-- 主網址取「本次 SSH 連入的 server IP」（從 tmux 取當前值，避開 nvim 環境變數 stale）；
+-- 另列 區網 / Tailscale 備援；主網址複製到剪貼簿（SSH 下走 OSC52，iPad 可直接貼）。
+-- markdown-preview 的 /page/<N> 之 N = buffer id（已確認 server.js: buffer.id===bufnr）。
+-- =============================================================
+local function mdp_open()
+  vim.cmd("MarkdownPreview")
+  local port = tostring(vim.g.mkdp_port or "8090")
+  local bufnr = vim.api.nvim_get_current_buf()
+  local function sh1(cmd)
+    local out = vim.fn.system(cmd)
+    return (vim.split(out or "", "\n")[1] or ""):gsub("%s+$", "")
+  end
+  local function url(ip) return "http://" .. ip .. ":" .. port .. "/page/" .. bufnr end
+
+  -- 1) SSH 連入的 server IP（tmux 取當前 client；退回 nvim 環境變數）
+  local conn = sh1("tmux show-environment SSH_CONNECTION 2>/dev/null"):gsub("^SSH_CONNECTION=", "")
+  if conn == "" or conn:match("^%-") then conn = vim.env.SSH_CONNECTION or "" end
+  local ssh_ip = conn:match("%S+%s+%S+%s+(%S+)") -- 第3欄 = server ip
+
+  -- 2) 本機 LAN / Tailscale
+  local lan_ip = sh1("ipconfig getifaddr en0 2>/dev/null")
+  if lan_ip == "" then lan_ip = nil end
+  local ts_bin = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+  local ts_ip = (vim.fn.executable(ts_bin) == 1) and sh1(ts_bin .. " ip -4 2>/dev/null") or ""
+  if ts_ip == "" then ts_ip = nil end
+
+  -- 組顯示（去重，主網址標 ★ 並複製）
+  local lines, seen = {}, {}
+  local function add(label, ip, star)
+    if not ip or ip == "" or seen[ip] then return end
+    seen[ip] = true
+    lines[#lines + 1] = "  " .. (star and "★ " or "  ") .. label .. "  " .. url(ip)
+  end
+  local primary = ssh_ip or ts_ip or lan_ip
+  add("連入", primary, true)
+  add("區網", lan_ip)
+  add("Tailscale", ts_ip)
+  if not primary then add("本機", "127.0.0.1") end
+
+  if primary then pcall(vim.fn.setreg, "+", url(primary)) end
+  vim.defer_fn(function()
+    vim.notify("MarkdownPreview" .. (primary and "（★ 已複製主網址）" or "") .. "\n" .. table.concat(lines, "\n"), vim.log.levels.INFO)
+  end, 400)
+end
+vim.api.nvim_create_user_command("Mdp", mdp_open, { desc = "MarkdownPreview + 列出可連網址（SSH/LAN/Tailscale）" })
+map("n", "<leader>mp", mdp_open, { desc = "MarkdownPreview + 可連網址" })

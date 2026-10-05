@@ -202,8 +202,10 @@ step "3/8 選配套件"
 #   jq       yazi 內建 json 預覽器
 #   sevenzip yazi 內建壓縮檔預覽器
 # 刻意不裝 libreoffice：office 類走「抽文字」而非「轉圖」，省下 GB 級相依。
+#   ffmpeg   yazi 內建影片預覽器靠它的 ffprobe 讀規格、ffmpeg 抽縮圖
+#            （沒裝的話 yazi 會顯示 "Failed to start ffprobe"）
 OPTIONAL=(chafa imagemagick luarocks lazygit git-delta bat fzf coreutils
-          yazi poppler pandoc glow visidata jq sevenzip)
+          yazi poppler pandoc glow visidata jq sevenzip ffmpeg)
 if [[ "$INSTALL_OPTIONAL" == "1" ]]; then
   for f in "${OPTIONAL[@]}"; do brew_install "$f"; done
   install_filebrowser   # filebrowser 改走官方 binary（brew 版缺前端會 404），見上方函式
@@ -265,6 +267,22 @@ if [[ "$INSTALL_OPTIONAL" == "1" ]]; then
     fi
   else
     warn "找不到 uv，略過 xlsx2csv（yazi 的 xlsx 預覽會失效）"
+  fi
+
+  # mermaid-cli（mmdc）：nvim 裡把 ```mermaid 區塊渲染成圖（diagram.nvim 用）。
+  # ⚠️ 它靠 puppeteer 驅動 headless Chromium，安裝體積不小（含 Chromium）。
+  # ⚠️ npm i -g 會裝到「當前 node 版本」的 bin 下；用 nvm 切換 node 版本後
+  #    mmdc 會不在 PATH 上，需要重跑這段。
+  if command -v npm >/dev/null 2>&1; then
+    if command -v mmdc >/dev/null 2>&1; then
+      ok "mermaid-cli (mmdc) 已安裝"
+    elif npm i -g @mermaid-js/mermaid-cli >/dev/null 2>&1; then
+      ok "mermaid-cli (mmdc) 安裝完成"
+    else
+      warn "mermaid-cli 安裝失敗——nvim 的 mermaid 渲染會失效，其餘不受影響"
+    fi
+  else
+    warn "找不到 npm，略過 mermaid-cli（nvim 的 mermaid 渲染會失效）"
   fi
 fi
 

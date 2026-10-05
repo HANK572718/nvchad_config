@@ -85,7 +85,13 @@ return {
   {
     "williamboman/mason.nvim",
     lazy = false,
-    opts = {},
+    opts = {
+      -- roslyn( C# LSP) 不在官方registry, 要加Crashdummyy 的; 順序不能換，官方放第一個
+      registry = {
+        "github:mason-org/mason-registry",
+        "github:Crashdummyy/mason-registry",
+      }
+    },
   },
   -- Mason 與 lspconfig 的橋接層（自動設定已安裝的 LSP server）
   {
@@ -109,7 +115,7 @@ return {
     cmd = { "MarkdownPreview", "MarkdownPreviewStop" },
     init = function()
       vim.g.mkdp_open_to_the_world = 1  -- bind 0.0.0.0，讓 SSH client 可從外部 IP 存取
-      vim.g.mkdp_echo_preview_url  = 1  -- 在 cmdline 顯示完整 URL（含 port）
+      vim.g.mkdp_echo_preview_url  = 0  -- 關內建 echo：改由 :Mdp / <leader>mp 印「可連網址」（見 mappings.lua）
       vim.g.mkdp_browser           = "" -- 不嘗試在 Windows 本機開瀏覽器
       vim.g.mkdp_port              = "8090" -- 固定 port，方便記憶或設 SSH tunnel
     end,
@@ -190,7 +196,7 @@ return {
         -- 編輯 nvim 設定本身
         "vim", "lua", "vimdoc", "luadoc", "query",
         -- 主要工作語言
-        "python", "bash",
+        "python", "bash","c_sharp",
         -- 常用標記/設定檔
         "markdown", "markdown_inline", "json", "jsonc", "yaml", "toml",
         -- Web 相關
@@ -346,12 +352,42 @@ return {
         },
 
         max_width = 100,
-        max_height = 40,
+        max_height = 60,
+        -- 預設 max_height_window_percentage=50 會把圖壓到只剩半個視窗高，
+        -- 直立型 mermaid 被等比縮到很小——放寬到 95% 讓大圖幾乎吃滿視窗。
+        max_height_window_percentage = 95,
       }
     end,
     config = function(_, opts)
       require("image").setup(opts)
     end,
+  },
+
+  -- =============================================================
+  -- diagram.nvim: 把 markdown 裡的 ```mermaid 區塊渲染成圖
+  -- =============================================================
+  -- 為什麼需要另一個外掛：render-markdown.nvim 只做「文字」渲染（標題、表格、
+  -- 清單、程式碼區塊底色），原始碼裡完全沒有 mermaid/diagram 相關實作，所以
+  -- ```mermaid 對它就只是個普通程式碼區塊。真正畫成圖要靠 diagram.nvim，
+  -- 它與 image.nvim 同作者，直接複用 image.nvim 的 Kitty 協定輸出。
+  --
+  -- 相依：mermaid-cli（mmdc，已用 npm i -g @mermaid-js/mermaid-cli 安裝）。
+  -- ⚠️ mmdc 內部用 puppeteer 驅動 headless Chromium，所以它不輕（含 Chromium）。
+  -- ⚠️ mmdc 裝在 nvm 的 node bin 下（~/.nvm/versions/node/<ver>/bin/mmdc）——
+  --    切換 node 版本後會找不到，需重裝。
+  {
+    "3rd/diagram.nvim",
+    dependencies = { "3rd/image.nvim" },
+    ft = { "markdown" },
+    opts = {
+      renderer_options = {
+        mermaid = {
+          theme = "dark",      -- 配合暗色主題（chadracula）
+          background = "transparent",
+          scale = 3,           -- 3 倍解析度：mermaid 文字相對終端文字更大、更清楚
+        },
+      },
+    },
   },
 
   -- =============================================================
@@ -445,7 +481,7 @@ return {
 
         -- Suppress session restore prompt
         auto_session_suppress_dirs = {
-          "~/",
+          -- "~/",
           "~/Downloads",
           "~/Desktop",
           "/",
@@ -458,5 +494,11 @@ return {
         log_level = "error",
       }
     end,
+  },
+  {
+    "seblyng/roslyn.nvim",
+    commit = "f2ec6ee6384c3b611ddc817b9e78b20cd0334bbb",
+    ft = "cs",
+    opts = {},
   },
 }
